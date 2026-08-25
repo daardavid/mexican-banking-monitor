@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Local data and downloaded CNBV artifacts
+data/raw/
+data/staging/
+data/*.duckdb
+*.parquet
+
+# Supabase local runtime
+supabase/.branches/
+supabase/.temp/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

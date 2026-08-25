@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mx-bank-monitor"
+version = "0.1.0"
+description = "Auditable CNBV banking analytics pipeline and dashboard for Mexico."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "David Abreu" }]
+dependencies = [
+  "httpx>=0.28,<1",
+  "openpyxl>=3.1,<4",
+  "pandas>=2.3,<4",
+  "pdfplumber>=0.11,<1",
+  "plotly>=6.3,<7",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "pyarrow>=21,<24",
+  "pyyaml>=6,<7",
+  "streamlit>=1.49,<2",
+  "tenacity>=9,<10",
+  "typer>=0.16,<1",
+]
+
+[project.scripts]
+mbm = "mx_bank_monitor.cli:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17,<2",
+  "pandas-stubs>=2.3,<3",
+  "pytest>=8.4,<10",
+  "pytest-cov>=6.2,<8",
+  "ruff>=0.12,<1",
+  "types-pyyaml>=6.0,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mx_bank_monitor"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --disable-warnings"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["mx_bank_monitor"]
+warn_unreachable = true

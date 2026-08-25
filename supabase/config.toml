@@ -1,0 +1,14 @@
+project_id = "mexican-banking-monitor"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 5000
+
+[db]
+major_version = 15
+
+[db.seed]
+enabled = false
+sql_paths = []

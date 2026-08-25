@@ -1,0 +1,44 @@
+schema_version: 1
+calculation_version: "2026.1"
+
+metrics:
+  loan_growth_yoy:
+    label: Loan growth
+    format: percent
+    formula: gross_loans_t / gross_loans_t_minus_12 - 1
+  deposit_growth_yoy:
+    label: Deposit growth
+    format: percent
+    formula: traditional_deposits_t / traditional_deposits_t_minus_12 - 1
+  nim:
+    label: Net interest margin
+    format: percent
+    formula: net_interest_income_ttm / average_earning_assets_12m
+  roa:
+    label: Return on assets
+    format: percent
+    formula: net_income_ttm / average_total_assets_12m
+  roe:
+    label: Return on equity
+    format: percent
+    formula: net_income_ttm / average_equity_12m
+  icap:
+    label: Capital adequacy ratio
+    format: percent
+    formula: CNBV-published capital_net / total_risk_weighted_assets
+  npl_ratio:
+    label: NPL ratio / IMOR
+    format: percent
+    formula: stage_3_loans / gross_loans
+  coverage_ratio:
+    label: Coverage ratio / ICOR
+    format: percent
+    formula: credit_loss_allowance / stage_3_loans
+  cost_of_risk:
+    label: Cost of risk
+    format: percent
+    formula: credit_provision_expense_ttm / average_gross_loans_12m
+  loans_to_deposits:
+    label: Loans to deposits
+    format: percent
+    formula: gross_loans / traditional_deposits

@@ -1,0 +1,18 @@
+schema_version: 1
+
+sources:
+  cnbv_portfolio:
+    sector: banca_multiple
+    landing_page: https://portafolioinfo.cnbv.gob.mx/Paginas/Inicio.aspx
+    formats: [csv, xlsx]
+    role: primary
+  cnbv_bulletin:
+    sector: banca_multiple
+    document_library: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    formats: [xlsx]
+    role: reconciliation
+  cnbv_capital:
+    sector: banca_multiple
+    document_library: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    formats: [pdf]
+    role: authoritative_icap

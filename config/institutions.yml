@@ -1,0 +1,19 @@
+schema_version: 1
+
+# This is an editorial classification, not an official CNBV category.
+# Add stable CNBV institution identifiers after the first source-format spike.
+institutions: []
+
+cohort_definitions:
+  traditional_bank:
+    label: Traditional bank
+    description: Established branch-led or universal bank.
+  digital_bank:
+    label: Digital-first bank
+    description: Institution licensed as banca multiple with a primarily digital model.
+  niche_bank:
+    label: Niche bank
+    description: Specialized bank not included in the primary traditional-vs-digital cohort.
+  sofipo_digital:
+    label: Digital SOFIPO
+    description: Digital challenger regulated as a SOFIPO; reported in a separate panel.
