@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     database_url: str | None = None
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
-    supabase_service_role_key: str | None = Field(default=None, repr=False)
+    supabase_secret_key: str | None = Field(default=None, repr=False)
 
     @property
     def database_configured(self) -> bool:

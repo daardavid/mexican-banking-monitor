@@ -26,6 +26,6 @@ extra operational surface.
 - Each laptop has its own untracked `.env`.
 - GitHub stores production secrets in the `production` environment.
 - The public dashboard receives only a publishable key and read-only RLS access.
-- The service-role key is available only to the ingestion job.
-- Raw regulatory files, database passwords, access tokens, and service-role keys are never exposed
+- The Supabase secret key is available only to the ingestion job.
+- Raw regulatory files, database passwords, access tokens, and Supabase secret keys are never exposed
   to the browser.

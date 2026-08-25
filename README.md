@@ -70,7 +70,7 @@ Windows and two-laptop instructions are in
 - `.env` is ignored and must exist separately on each laptop.
 - GitHub Actions secrets belong to the protected `production` environment.
 - The dashboard may use only Supabase's publishable key and a read-only RLS policy.
-- The service-role key and database password are server-side secrets.
+- The Supabase secret key and database password are server-side secrets.
 - No source parser may silently replace, reinterpret, or drop an institution or period.
 
 ## Current status

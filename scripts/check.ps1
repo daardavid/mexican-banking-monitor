@@ -1,6 +1,13 @@
 $ErrorActionPreference = "Stop"
 
-uv run ruff check .
-uv run mypy
-uv run pytest --cov=mx_bank_monitor --cov-report=term-missing
-uv run mbm validate-config
+. (Join-Path $PSScriptRoot "common.ps1")
+
+Invoke-ExternalCommand "uv" @("run", "ruff", "check", ".")
+Invoke-ExternalCommand "uv" @("run", "mypy")
+Invoke-ExternalCommand "uv" @(
+    "run",
+    "pytest",
+    "--cov=mx_bank_monitor",
+    "--cov-report=term-missing"
+)
+Invoke-ExternalCommand "uv" @("run", "mbm", "validate-config")
