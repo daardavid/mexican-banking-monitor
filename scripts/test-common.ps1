@@ -32,3 +32,4 @@ if ($errorMessage.Contains($sensitiveMarker)) {
 }
 
 Write-Host "PowerShell command regression checks passed."
+exit 0
