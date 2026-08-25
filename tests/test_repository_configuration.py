@@ -8,6 +8,7 @@ def test_environment_example_uses_modern_supabase_keys() -> None:
 
     assert "MBM_SUPABASE_PUBLISHABLE_KEY=replace-me" in environment_example
     assert "MBM_SUPABASE_SECRET_KEY=replace-me" in environment_example
+    assert "MBM_SUPABASE_SERVICE_ROLE_KEY" not in environment_example
 
 
 def test_refresh_workflow_uses_modern_supabase_secret() -> None:
@@ -17,3 +18,4 @@ def test_refresh_workflow_uses_modern_supabase_secret() -> None:
 
     expected = "MBM_SUPABASE_SECRET_KEY: ${{ secrets.MBM_SUPABASE_SECRET_KEY }}"
     assert expected in refresh_workflow
+    assert "MBM_SUPABASE_SERVICE_ROLE_KEY" not in refresh_workflow
