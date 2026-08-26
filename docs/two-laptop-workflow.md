@@ -11,7 +11,7 @@ and that contract ever differ, stop and correct the documentation before continu
    ```powershell
    winget install --id Git.Git -e
    winget install --id GitHub.cli -e
-   winget install --id astral-sh.uv -e
+   winget install --id astral-sh.uv -e --version 0.12.6
    ```
 
 2. Authenticate that laptop directly with GitHub:

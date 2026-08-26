@@ -41,14 +41,14 @@ See [ADR 0001](docs/adr/0001-modular-monolith.md),
 
 ## Development setup
 
-Requirements: Git and uv. Docker is optional during the first phase.
+Requirements: Git and uv 0.12.6. Docker is optional during the first phase.
 
 ```bash
-uv python install 3.12
+uv python install 3.12.14
 uv sync --locked --all-groups
 cp .env.example .env
-uv run mbm validate-config
-uv run pytest
+uv run --no-sync mbm validate-config
+uv run --no-sync pytest
 ```
 
 Run the bootstrap dashboard:
