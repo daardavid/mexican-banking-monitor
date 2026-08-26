@@ -31,7 +31,9 @@ not a changelog and does not make the roadmap executable.
   on dependency drift without rewriting `uv.lock`.
 - Manual migration-deploy and scheduled refresh workflows exist, but their planned hardening and
   placeholder-schedule removal belong to later roadmap PRs.
-- PowerShell bootstrap, update, shared command, regression, and full-check scripts.
+- PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
+  main-only, requires a clean tree tracking `origin/main`, rejects local/diverged history, and uses
+  explicit fetch plus fast-forward.
 - Streamlit placeholder dashboard; it does not yet consume regulatory data.
 - A source-format spike document, but no real CNBV discovery, parser, facts ingestion, metric
   engine, backfill, or public v1 dataset.
@@ -59,8 +61,9 @@ not a changelog and does not make the roadmap executable.
 ## Roadmap progress
 
 - `PR1 chore/freeze-operational-contract` — MERGED / COMPLETE.
-- `PR2 chore/pin-python-uv-toolchain` — IN PROGRESS.
-- `PR3 fix/harden-two-laptop-update` — NEXT.
+- `PR2 chore/pin-python-uv-toolchain` — MERGED / COMPLETE.
+- `PR3 fix/harden-two-laptop-update` — IN PROGRESS.
+- `PR4 fix/harden-database-preflight` — NEXT.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates
