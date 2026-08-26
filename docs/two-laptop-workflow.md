@@ -39,9 +39,14 @@ Before starting on either laptop:
 
 ```powershell
 git switch main
-git pull --ff-only
+.\scripts\update.ps1
 git switch -c feature/short-description
 ```
+
+`update.ps1` only updates a clean local `main` that tracks exactly `origin/main`. It fetches
+`origin`, rejects local commits or diverged history, and advances a behind branch only by
+fast-forward. It never stashes, resets, rebases, or discards local work. After Git is synchronized,
+it reproduces the locked environment and runs the existing validation and tests.
 
 Before moving to the other laptop:
 

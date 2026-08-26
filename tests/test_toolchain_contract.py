@@ -54,6 +54,7 @@ def test_linux_and_windows_ci_use_the_exact_toolchain() -> None:
 def test_bootstrap_and_checks_preserve_the_locked_environment() -> None:
     bootstrap = (REPOSITORY_ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
     checks = (REPOSITORY_ROOT / "scripts" / "check.ps1").read_text(encoding="utf-8")
+    update = (REPOSITORY_ROOT / "scripts" / "update.ps1").read_text(encoding="utf-8")
     laptop_workflow = (REPOSITORY_ROOT / "docs" / "two-laptop-workflow.md").read_text(
         encoding="utf-8"
     )
@@ -62,6 +63,8 @@ def test_bootstrap_and_checks_preserve_the_locked_environment() -> None:
     assert '@("sync", "--locked", "--all-groups")' in bootstrap
     assert '@("sync", "--locked", "--all-groups")' in checks
     assert checks.count('"--no-sync"') == 4
+    assert '@("sync", "--locked", "--all-groups")' in update
+    assert update.count('"--no-sync"') == 2
     assert f"winget install --id astral-sh.uv -e --version {UV_VERSION}" in laptop_workflow
 
 

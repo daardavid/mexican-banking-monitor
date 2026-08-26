@@ -48,6 +48,10 @@ jobs:
         shell: pwsh
         run: .\scripts\test-common.ps1
 
+      - name: Run PowerShell update regression
+        shell: pwsh
+        run: .\scripts\test-update.ps1
+
       - name: Run full PowerShell checks
         shell: pwsh
         run: .\scripts\check.ps1
