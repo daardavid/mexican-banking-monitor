@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,14 +15,14 @@ class Settings(BaseSettings):
 
     env: str = "development"
     log_level: str = "INFO"
-    database_url: str | None = None
+    database_url: SecretStr | None = None
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
     supabase_secret_key: str | None = Field(default=None, repr=False)
 
     @property
     def database_configured(self) -> bool:
-        return bool(self.database_url)
+        return bool(self.database_url and self.database_url.get_secret_value())
 
 
 @lru_cache

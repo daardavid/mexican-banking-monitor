@@ -64,6 +64,13 @@ uv run mbm doctor
 uv run mbm doctor --database
 ```
 
+`doctor --database` is a read-only preflight: it pings PostgreSQL and verifies a small set of
+representative legacy objects from `core`, `ops`, `analytics`, and `public`. It never runs or repairs
+migrations. Database connections use a 10-second connect timeout and disable client-side prepared
+statements for every URL. Applying that conservative policy to both transaction-pooler and direct
+connections avoids relying on host or port heuristics; it can be revisited if a future workload
+needs explicit connection modes.
+
 Windows and two-laptop instructions are in
 [docs/two-laptop-workflow.md](docs/two-laptop-workflow.md).
 The canonical migration, cutover, and recovery rules are in
