@@ -17,9 +17,12 @@ not a changelog and does not make the roadmap executable.
 ## Implemented now
 
 - Installable `mx_bank_monitor` package organized as a modular monolith.
-- Settings for local environment and Supabase connectivity, including secret-safe field repr.
-- CLI commands `mbm validate-config` and `mbm doctor`; `doctor --database` performs a database
-  connectivity ping when `MBM_DATABASE_URL` is configured.
+- Settings for local environment and Supabase connectivity, with the database DSN and Supabase
+  secret key protected from settings repr.
+- CLI commands `mbm validate-config` and `mbm doctor`; `doctor --database` performs a secret-safe,
+  read-only connectivity and legacy-schema preflight when `MBM_DATABASE_URL` is configured.
+- PostgreSQL connections use an explicit 10-second connect timeout and conservatively disable
+  client-side prepared statements for transaction-pooler compatibility.
 - Exact domain models/formulas, YTD conversion, cohort helpers, and HTTP artifact validation/hash
   primitives with tests.
 - Version-controlled YAML placeholders for sources, institutions, and metric descriptions; current
@@ -54,6 +57,10 @@ not a changelog and does not make the roadmap executable.
 - Development uses two laptops with independent Git clones outside OneDrive or other sync folders.
 - GitHub synchronizes code, branches, and migrations.
 - Both laptops and GitHub jobs may use one shared remote Supabase backend.
+- A read-only smoke test confirmed that the shared backend is reachable but currently lacks the
+  representative legacy objects required by the database preflight. No migration or repair was
+  executed; remote inventory and any migration-state reconciliation decision remain pending and
+  outside PR4.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -62,8 +69,10 @@ not a changelog and does not make the roadmap executable.
 
 - `PR1 chore/freeze-operational-contract` — MERGED / COMPLETE.
 - `PR2 chore/pin-python-uv-toolchain` — MERGED / COMPLETE.
-- `PR3 fix/harden-two-laptop-update` — IN PROGRESS.
-- `PR4 fix/harden-database-preflight` — NEXT.
+- `PR3 fix/harden-two-laptop-update` — MERGED / COMPLETE.
+- `PR4 fix/harden-database-preflight` — IN PROGRESS; implementation is complete on its review
+  branch, pending review and merge.
+- `PR5 ci/validate-supabase-migrations` — NEXT.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates

@@ -7,7 +7,7 @@ import typer
 import yaml
 
 from mx_bank_monitor import __version__
-from mx_bank_monitor.persistence.postgres import PostgresRepository
+from mx_bank_monitor.persistence.postgres import DatabasePreflightError, PostgresRepository
 from mx_bank_monitor.settings import get_settings
 
 app = typer.Typer(no_args_is_help=True, help="Mexico Banking Monitor command line.")
@@ -23,10 +23,19 @@ def doctor(check_database: bool = typer.Option(False, "--database")) -> None:
     typer.echo(f"database configured: {'yes' if settings.database_configured else 'no'}")
 
     if check_database:
-        if not settings.database_url:
+        if not settings.database_configured or settings.database_url is None:
             raise typer.BadParameter("MBM_DATABASE_URL is not configured")
-        ok = PostgresRepository(settings.database_url).ping()
-        typer.echo(f"database reachable: {'yes' if ok else 'no'}")
+
+        repository = PostgresRepository(settings.database_url)
+        try:
+            if not repository.ping():
+                raise DatabasePreflightError("Database ping returned an unexpected response.")
+            typer.echo("database reachable: yes")
+            repository.preflight_schema()
+            typer.echo("database schema: expected legacy objects present")
+        except DatabasePreflightError as error:
+            typer.echo(f"database preflight failed: {error}", err=True)
+            raise typer.Exit(code=1) from None
 
 
 @app.command("validate-config")
