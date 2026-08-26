@@ -14,7 +14,6 @@ than hiding them behind charts.
 ## Initial scope
 
 - Banca multiple from January 2022 onward.
-- Separate analytical panel for digital SOFIPOs.
 - Monthly loan and deposit growth.
 - NIM, ROA, ROE, ICAP, NPL/IMOR, coverage/ICOR, cost of risk, and loans-to-deposits.
 - Release-level lineage, exact source hashes, calculation versions, and quality issues.
@@ -23,7 +22,9 @@ than hiding them behind charts.
 
 ## Architecture
 
-The application is a modular Python monolith backed by Supabase/Postgres:
+The application is a modular Python monolith backed by Supabase/Postgres. The repository currently
+contains an MVP/bootstrap schema; the approved Regulatory Data Core v1 target is documented but not
+yet implemented:
 
 ```text
 CNBV files -> ingestion -> normalized facts -> metric engine -> publication table -> dashboard
@@ -34,8 +35,9 @@ Business formulas are independent from HTTP, Postgres, and Streamlit. Raw CNBV a
 stored in the application database; only normalized facts, release metadata, hashes, and published
 metrics are persisted.
 
-See [ADR 0001](docs/adr/0001-modular-monolith.md) and
-[ADR 0002](docs/adr/0002-supabase-and-automation.md).
+See [ADR 0001](docs/adr/0001-modular-monolith.md),
+[ADR 0002](docs/adr/0002-supabase-and-automation.md), and the
+[Regulatory Data Core v1 roadmap](docs/roadmap/regulatory-data-core-v1.md).
 
 ## Development setup
 
@@ -64,6 +66,8 @@ uv run mbm doctor --database
 
 Windows and two-laptop instructions are in
 [docs/two-laptop-workflow.md](docs/two-laptop-workflow.md).
+The canonical migration, cutover, and recovery rules are in
+[docs/operations/operational-contract.md](docs/operations/operational-contract.md).
 
 ## Security
 
@@ -75,10 +79,11 @@ Windows and two-laptop instructions are in
 
 ## Current status
 
-Foundation complete: package, exact domain formulas, configuration, SQL schema, audit tables,
-read-only publication surface, tests, CI, scheduled-job shell, and two-laptop workflow. The next
-milestone is the three-period CNBV source-format spike described in
-[docs/source-spike.md](docs/source-spike.md).
+Bootstrap foundation exists: package, exact domain formulas, basic configuration, one legacy SQL
+schema, audit primitives, a read-only legacy publication surface, tests, CI, scheduled-job shell,
+and a placeholder dashboard. Regulatory Data Core v1 is approved but not yet implemented. See the
+compact [current-state snapshot](docs/context/current-state.md) for what exists and what comes next;
+the later CNBV source-format work remains described in [docs/source-spike.md](docs/source-spike.md).
 
 ## License
 

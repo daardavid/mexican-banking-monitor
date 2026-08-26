@@ -1,5 +1,9 @@
 # Working safely from two laptops
 
+This is the practical workflow. The canonical rules for topology, secrets, migrations, cutover, and
+recovery are frozen in [the operational contract](operations/operational-contract.md). If this guide
+and that contract ever differ, stop and correct the documentation before continuing.
+
 ## One-time setup on each Windows laptop
 
 1. Install Git, GitHub CLI, and uv:
@@ -16,8 +20,9 @@
    gh auth login
    ```
 
-3. Clone the repository into a normal local development folder. Do not place the working repository
-   inside OneDrive, Dropbox, or another folder-sync product.
+3. Clone the repository independently into a normal local development folder. Do not place the
+   working repository inside OneDrive, Dropbox, Google Drive, or another folder-sync product. Do not
+   copy `.git`, `.venv`, or the source tree from the other laptop.
 
 4. Run:
 
@@ -25,7 +30,8 @@
    .\scripts\bootstrap.ps1
    ```
 
-5. Populate `.env` locally. Never send `.env` through chat, email, or Git.
+5. Populate `.env` locally. Each laptop keeps its own `.env` and `.venv`; never send either through
+   chat, email, Git, or a folder-sync product.
 
 ## Daily workflow
 
@@ -54,13 +60,21 @@ git switch feature/short-description
 git pull --ff-only
 ```
 
-Avoid editing the same uncommitted branch on both laptops. Git transfers code and migrations;
-Supabase transfers shared application data; neither replaces the other.
+Avoid editing the same uncommitted branch on both laptops. GitHub is the only synchronization path
+for code, branches, and migrations. Supabase is the shared backend for deployed schema and
+application data; it does not transfer code.
 
 ## Schema changes
 
-- Create a new SQL migration; never edit a migration already applied remotely.
-- Test the change and open a pull request.
-- Merge it to `main`.
-- Run the manual `Deploy database migrations` workflow.
-- Confirm migration history before beginning another schema change.
+- Complete the required read-only remote inventory before the first v1 schema PR.
+- Allow only one schema PR in flight.
+- Create a new forward-only SQL migration; never edit one already merged or applied.
+- Test against a local or disposable test database and run `.\scripts\check.ps1`.
+- Open the PR, review it, and merge it to `main`.
+- Deploy the merged migration through the controlled migration workflow.
+- Verify remote migration history and intended behavior.
+- Only then may the other laptop update `main`, synchronize migrations, and continue.
+
+Never reset or automatically repair the shared remote database. Never dual-write between legacy and
+v1. Recovery disables the affected v1 path, preserves its data for diagnosis, and fixes forward with
+a new migration or commit; see the operational contract for the full procedure.
