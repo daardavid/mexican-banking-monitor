@@ -74,6 +74,11 @@ def _migration_version(name: str) -> str | None:
     return version
 
 
+def _legacy_sha256(content: bytes) -> str:
+    canonical_crlf = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    return hashlib.sha256(canonical_crlf).hexdigest()
+
+
 def load_migrations(migrations_dir: Path, *, verify_legacy: bool = True) -> list[Migration]:
     if not migrations_dir.is_dir():
         raise MigrationValidationError(f"Migration directory does not exist: {migrations_dir}")
@@ -114,7 +119,7 @@ def load_migrations(migrations_dir: Path, *, verify_legacy: bool = True) -> list
         if not legacy_path.is_file():
             errors.append(f"immutable legacy migration is missing: {LEGACY_MIGRATION_NAME}")
         else:
-            actual_hash = hashlib.sha256(legacy_path.read_bytes()).hexdigest()
+            actual_hash = _legacy_sha256(legacy_path.read_bytes())
             if actual_hash != LEGACY_MIGRATION_SHA256:
                 errors.append(
                     f"immutable legacy migration hash changed: {LEGACY_MIGRATION_NAME}"

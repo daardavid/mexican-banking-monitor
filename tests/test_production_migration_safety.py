@@ -15,6 +15,7 @@ sys.modules[MODULE_SPEC.name] = MIGRATION_SAFETY
 MODULE_SPEC.loader.exec_module(MIGRATION_SAFETY)
 
 LEGACY_MIGRATION_NAME = MIGRATION_SAFETY.LEGACY_MIGRATION_NAME
+LEGACY_MIGRATION_SHA256 = MIGRATION_SAFETY.LEGACY_MIGRATION_SHA256
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -24,6 +25,7 @@ main = MIGRATION_SAFETY.main
 parse_history_json = MIGRATION_SAFETY.parse_history_json
 validate_dry_run = MIGRATION_SAFETY.validate_dry_run
 validate_history = MIGRATION_SAFETY.validate_history
+legacy_sha256 = MIGRATION_SAFETY._legacy_sha256
 
 
 def migration(tmp_path: Path, version: str, name: str = "change") -> Migration:
@@ -59,8 +61,11 @@ def dry_run_output(*, omit: str | None = None, **overrides: object) -> str:
 
 def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     migrations = load_migrations(REPOSITORY_ROOT / "supabase" / "migrations")
+    content = migrations[0].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [LEGACY_MIGRATION_NAME]
+    assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
+    assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
 
 
 @pytest.mark.parametrize(
