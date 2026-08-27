@@ -29,3 +29,10 @@ extra operational surface.
 - The Supabase secret key is available only to the ingestion job.
 - Raw regulatory files, database passwords, access tokens, and Supabase secret keys are never exposed
   to the browser.
+
+## Operational amendment — 2026-08-27
+
+GitHub Actions remains the selected orchestrator, but the placeholder weekday schedule was disabled
+after roadmap PR7 because it did not perform ingestion. Scheduled ingestion may be enabled again only
+after the source adapter/parser, quality gates, and idempotency behavior for a real `mbm refresh` have
+been implemented and validated. Until then, the refresh workflow is manual database preflight only.
