@@ -120,6 +120,7 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
     assert "PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE" in current_state
-    assert "PR8 docs/regulatory-core-architecture-v1` — IN PROGRESS" in current_state
-    assert "PR9 refactor/versioned-config-contracts` — NEXT" in current_state
+    assert "PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE" in current_state
+    assert "PR9 refactor/versioned-config-contracts` — IN PROGRESS" in current_state
+    assert "PR10 feat/data-core-schema-primitives` — NEXT, but BLOCKED" in current_state
     assert "Regulatory Data Core v1 schema work — NOT STARTED" in current_state

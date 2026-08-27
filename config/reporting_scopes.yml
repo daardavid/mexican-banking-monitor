@@ -1,0 +1,9 @@
+schema_version: 2
+
+reporting_scopes:
+  - code: individual_legal_entity
+    definition_version: 1
+    label: Individual legal entity
+    definition: Facts reported for one regulated legal entity without an inferred consolidation perimeter.
+    rationale: Approved Regulatory Data Core v1 baseline; no additional CNBV scope is yet evidenced.
+    lifecycle: active

@@ -4,9 +4,9 @@ import platform
 from pathlib import Path
 
 import typer
-import yaml
 
 from mx_bank_monitor import __version__
+from mx_bank_monitor.config import ConfigValidationError, load_config_bundle
 from mx_bank_monitor.persistence.postgres import DatabasePreflightError, PostgresRepository
 from mx_bank_monitor.settings import get_settings
 
@@ -40,16 +40,24 @@ def doctor(check_database: bool = typer.Option(False, "--database")) -> None:
 
 @app.command("validate-config")
 def validate_config(config_dir: Path = Path("config")) -> None:
-    """Validate that version-controlled YAML configuration can be loaded."""
-    required = ["institutions.yml", "metrics.yml", "sources.yml"]
-    for filename in required:
-        path = config_dir / filename
-        if not path.exists():
-            raise typer.BadParameter(f"Missing configuration file: {path}")
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if document.get("schema_version") != 1:
-            raise typer.BadParameter(f"Unsupported schema_version in {path}")
-        typer.echo(f"ok: {path}")
+    """Validate the complete version-controlled editorial configuration bundle."""
+    try:
+        bundle = load_config_bundle(config_dir)
+    except ConfigValidationError as error:
+        typer.echo(f"config validation failed: {error}", err=True)
+        raise typer.Exit(code=1) from None
+
+    typer.echo(
+        "config valid: "
+        f"schema_version={bundle.schema_version} "
+        f"sources={len(bundle.sources.sources)} "
+        f"institutions={len(bundle.institutions.institutions)} "
+        f"reporting_scopes={len(bundle.reporting_scopes.reporting_scopes)} "
+        f"concepts={len(bundle.concepts.concepts)} "
+        f"regulatory_concepts={len(bundle.mappings.regulatory_concepts)} "
+        f"mappings={len(bundle.mappings.mappings)} "
+        f"metrics={len(bundle.metrics.metrics)}"
+    )
 
 
 if __name__ == "__main__":

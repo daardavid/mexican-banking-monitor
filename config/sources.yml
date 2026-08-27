@@ -1,18 +1,47 @@
-schema_version: 1
+schema_version: 2
 
 sources:
-  cnbv_portfolio:
+  - code: cnbv_portfolio
+    definition_version: 1
+    label: CNBV Portfolio Information
+    regulator_code: cnbv
+    country: MX
     sector: banca_multiple
-    landing_page: https://portafolioinfo.cnbv.gob.mx/Paginas/Inicio.aspx
+    adapter_key: cnbv_portfolio
+    methodological_role: primary
     formats: [csv, xlsx]
-    role: primary
-  cnbv_bulletin:
+    endpoints:
+      - kind: landing_page
+        url: https://portafolioinfo.cnbv.gob.mx/Paginas/Inicio.aspx
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: draft
+
+  - code: cnbv_bulletin
+    definition_version: 1
+    label: CNBV Statistical Bulletin Library
+    regulator_code: cnbv
+    country: MX
     sector: banca_multiple
-    document_library: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    adapter_key: cnbv_bulletin
+    methodological_role: reconciliation
     formats: [xlsx]
-    role: reconciliation
-  cnbv_capital:
+    endpoints:
+      - kind: document_library
+        url: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: draft
+
+  - code: cnbv_capital
+    definition_version: 1
+    label: CNBV Capitalization Information Library
+    regulator_code: cnbv
+    country: MX
     sector: banca_multiple
-    document_library: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    adapter_key: cnbv_capital
+    methodological_role: authoritative_icap
     formats: [pdf]
-    role: authoritative_icap
+    endpoints:
+      - kind: document_library
+        url: https://portafolioinfo.cnbv.gob.mx/portafolioinformacion/forms/allitems.aspx
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: draft

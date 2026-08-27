@@ -25,8 +25,9 @@ not a changelog and does not make the roadmap executable.
   client-side prepared statements for transaction-pooler compatibility.
 - Exact domain models/formulas, YTD conversion, cohort helpers, and HTTP artifact validation/hash
   primitives with tests.
-- Version-controlled YAML placeholders for sources, institutions, and metric descriptions; current
-  validation checks file presence and `schema_version`, not the future typed contracts.
+- Version-controlled YAML editorial definitions for sources, institutions/cohorts, controlled
+  reporting scopes, canonical/source concepts, mappings, and metric metadata. PR9 is implementing
+  strict Pydantic contracts, duplicate-safe YAML loading, and whole-bundle cross-validation.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -51,6 +52,10 @@ not a changelog and does not make the roadmap executable.
 ## Architecture status
 
 `Regulatory Data Core v1: APPROVED / NOT YET IMPLEMENTED`
+
+Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
+and registration identity, temporal/review and supersession semantics, controlled reporting scope,
+and Git/YAML editorial authority with Python as executable authority.
 
 ## Legacy status
 
@@ -87,16 +92,20 @@ not a changelog and does not make the roadmap executable.
   deployment workflow has not been dispatched.
 - `PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE; the placeholder schedule is
   disabled while real `mbm refresh` remains unavailable.
-- `PR8 docs/regulatory-core-architecture-v1` — IN PROGRESS; ADR contracts are being frozen on its
-  documentation-only branch.
-- `PR9 refactor/versioned-config-contracts` — NEXT.
+- `PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE; architecture ADRs are frozen on
+  `main`.
+- `PR9 refactor/versioned-config-contracts` — IN PROGRESS; typed editorial configuration contracts
+  and semantic bundle validation are being implemented locally.
+- `PR10 feat/data-core-schema-primitives` — NEXT, but BLOCKED until the mandatory read-only remote
+  inventory and reconciliation gate is completed.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates
 
 - A read-only remote Supabase inventory is still pending. It must verify migration history,
   objects, dependencies, and relevant counts before the first PR that creates or deploys v1 schema.
-  It does not block Phase 0 toolchain work.
+  The known shared-remote mismatch remains unresolved; inventory and an explicit reconciliation
+  decision are mandatory before PR10.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Supabase Storage suitability/retention must be confirmed before artifact backfill.

@@ -1,0 +1,31 @@
+schema_version: 2
+
+# MONITOR canonical concepts. These are not CNBV regulatory taxonomy codes.
+concepts:
+  - code: gross_loans
+    definition_version: 1
+    label: Gross loans
+    definition: Gross carrying amount of the institution's loan portfolio at period end.
+    data_nature: stock
+    period_kind: instant
+    canonical_unit_code: MXN
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: active
+  - code: traditional_deposits
+    definition_version: 1
+    label: Traditional deposits
+    definition: Traditional deposit funding balance at period end.
+    data_nature: stock
+    period_kind: instant
+    canonical_unit_code: MXN
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: active
+  - code: net_income_ytd
+    definition_version: 1
+    label: Net income year to date
+    definition: Cumulative net income from the beginning of the fiscal year through period end.
+    data_nature: flow_ytd
+    period_kind: duration
+    canonical_unit_code: MXN
+    reporting_scope_codes: [individual_legal_entity]
+    lifecycle: active
