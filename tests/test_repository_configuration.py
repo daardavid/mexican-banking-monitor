@@ -112,3 +112,129 @@ def test_migration_smoke_is_present_and_read_only() -> None:
         flags=re.IGNORECASE | re.MULTILINE,
     )
     assert write_statement.search(smoke_sql) is None
+
+
+def test_production_migration_deploy_has_manual_main_only_serialized_contract() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    trigger = workflow.get("on", workflow.get(True))
+
+    assert trigger == {"workflow_dispatch": None}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["concurrency"] == {
+        "group": "production-database-migrations",
+        "cancel-in-progress": False,
+    }
+
+    guard = workflow["jobs"]["main-guard"]
+    guard_command = guard["steps"][0]["run"]
+    assert '"$GITHUB_REF" != "refs/heads/main"' in guard_command
+    assert "exit 1" in guard_command
+
+    deploy = workflow["jobs"]["migrate"]
+    assert deploy["needs"] == "main-guard"
+    assert deploy["environment"] == "production"
+    assert deploy["env"]["SUPABASE_ACCESS_TOKEN"] == (
+        "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+    )
+    assert deploy["env"]["SUPABASE_DB_PASSWORD"] == (
+        "${{ secrets.SUPABASE_DB_PASSWORD }}"
+    )
+    assert deploy["env"]["SUPABASE_PROJECT_ID"] == (
+        "${{ secrets.SUPABASE_PROJECT_ID }}"
+    )
+
+
+def test_production_migration_deploy_pins_tools_and_orders_all_gates() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    steps = workflow["jobs"]["migrate"]["steps"]
+    named_steps = {step["name"]: step for step in steps if "name" in step}
+    step_names = [step.get("name", "checkout") for step in steps]
+
+    assert named_steps["Install Supabase CLI"]["uses"] == SUPABASE_SETUP_ACTION
+    assert named_steps["Install Supabase CLI"]["with"]["version"] == SUPABASE_CLI_VERSION
+    assert named_steps["Install Supabase CLI"]["with"]["version"] != "latest"
+
+    ordered_gates = [
+        "Validate local migration repository",
+        "Link production project",
+        "Inspect remote migration history",
+        "Gate migration history drift",
+        "Reject destructive pending migrations",
+        "Preview pending migrations",
+        "Verify dry-run plan",
+        "Push pending migrations",
+        "Inspect migration history after push",
+        "Verify migration history after push",
+        "Verify post-push dry-run is a no-op",
+    ]
+    assert [step_names.index(name) for name in ordered_gates] == sorted(
+        step_names.index(name) for name in ordered_gates
+    )
+
+    assert named_steps["Link production project"]["run"] == (
+        'supabase link --project-ref "$SUPABASE_PROJECT_ID"'
+    )
+    structured_steps = {
+        "Inspect remote migration history": (
+            "supabase migration list --linked --output-format json",
+            "migration-history-before.json",
+        ),
+        "Preview pending migrations": (
+            "supabase db push --linked --dry-run --output-format json",
+            "migration-dry-run-before.json",
+        ),
+        "Inspect migration history after push": (
+            "supabase migration list --linked --output-format json",
+            "migration-history-after.json",
+        ),
+        "Verify post-push dry-run is a no-op": (
+            "supabase db push --linked --dry-run --output-format json",
+            "migration-dry-run-after.json",
+        ),
+    }
+    for step_name, (command, output_name) in structured_steps.items():
+        run = named_steps[step_name]["run"]
+        assert command in run
+        assert f'> "$RUNNER_TEMP/{output_name}"' in run
+        assert "2>&1" not in run
+        assert "tee " not in run
+
+    assert "migration-history-before.json" in named_steps[
+        "Gate migration history drift"
+    ]["run"]
+    assert "migration-dry-run-before.json" in named_steps["Verify dry-run plan"]["run"]
+    push = named_steps["Push pending migrations"]
+    assert push["if"] == "steps.history.outputs.has_pending == 'true'"
+    assert push["run"] == "supabase db push --linked --yes"
+    assert "--require-aligned" in named_steps["Verify migration history after push"]["run"]
+    assert "migration-history-after.json" in named_steps[
+        "Verify migration history after push"
+    ]["run"]
+
+
+def test_production_migration_deploy_never_bypasses_or_repairs_history() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    serialized = repr(workflow).lower()
+
+    for forbidden_contract in (
+        "--include-all",
+        "migration repair",
+        "db reset --linked",
+        "schema_migrations",
+        "continue-on-error",
+        "set -x",
+        "printenv",
+    ):
+        assert forbidden_contract not in serialized

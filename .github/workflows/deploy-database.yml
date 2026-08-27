@@ -6,23 +6,122 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
 jobs:
+  main-guard:
+    name: Require main branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject non-main dispatch
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Production database migrations may only be dispatched from main." >&2
+            exit 1
+          fi
+
   migrate:
+    name: Deploy production migrations
+    needs: main-guard
     runs-on: ubuntu-latest
     environment: production
     env:
+      NO_COLOR: "1"
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - uses: supabase/setup-cli@v1
+      - name: Install Python tooling
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          version: latest
+          version: "0.12.6"
+          python-version: "3.12.14"
+          enable-cache: false
 
-      - run: supabase link --project-ref "$PROJECT_ID"
-      - run: supabase db push --include-all
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: "2.115.0"
+
+      - name: Validate local migration repository
+        run: >-
+          uv run --no-project --python 3.12.14 python
+          scripts/validate_production_migrations.py repository
+
+      - name: Link production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Inspect remote migration history
+        shell: bash
+        run: |
+          supabase migration list --linked --output-format json \
+            > "$RUNNER_TEMP/migration-history-before.json"
+
+      - name: Gate migration history drift
+        id: history
+        shell: bash
+        run: |
+          uv run --no-project --python 3.12.14 python \
+            scripts/validate_production_migrations.py history \
+            --input "$RUNNER_TEMP/migration-history-before.json" \
+            --pending-output "$RUNNER_TEMP/pending-migrations.txt"
+          if [[ -s "$RUNNER_TEMP/pending-migrations.txt" ]]; then
+            echo "has_pending=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reject destructive pending migrations
+        run: >-
+          uv run --no-project --python 3.12.14 python
+          scripts/validate_production_migrations.py sql
+          --files-from "$RUNNER_TEMP/pending-migrations.txt"
+
+      - name: Preview pending migrations
+        shell: bash
+        run: |
+          supabase db push --linked --dry-run --output-format json \
+            > "$RUNNER_TEMP/migration-dry-run-before.json"
+
+      - name: Verify dry-run plan
+        run: >-
+          uv run --no-project --python 3.12.14 python
+          scripts/validate_production_migrations.py dry-run
+          --input "$RUNNER_TEMP/migration-dry-run-before.json"
+          --files-from "$RUNNER_TEMP/pending-migrations.txt"
+
+      - name: Push pending migrations
+        if: steps.history.outputs.has_pending == 'true'
+        run: supabase db push --linked --yes
+
+      - name: Inspect migration history after push
+        shell: bash
+        run: |
+          supabase migration list --linked --output-format json \
+            > "$RUNNER_TEMP/migration-history-after.json"
+
+      - name: Verify migration history after push
+        run: >-
+          uv run --no-project --python 3.12.14 python
+          scripts/validate_production_migrations.py history
+          --input "$RUNNER_TEMP/migration-history-after.json"
+          --pending-output "$RUNNER_TEMP/pending-migrations-after.txt"
+          --require-aligned
+
+      - name: Verify post-push dry-run is a no-op
+        shell: bash
+        run: |
+          supabase db push --linked --dry-run --output-format json \
+            > "$RUNNER_TEMP/migration-dry-run-after.json"
+          uv run --no-project --python 3.12.14 python \
+            scripts/validate_production_migrations.py dry-run \
+            --input "$RUNNER_TEMP/migration-dry-run-after.json" \
+            --files-from "$RUNNER_TEMP/pending-migrations-after.txt"
