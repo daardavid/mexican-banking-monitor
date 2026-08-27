@@ -30,6 +30,9 @@ not a changelog and does not make the roadmap executable.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
+- CI migration validation uses a pinned Supabase CLI against an ephemeral local database: it
+  rebuilds all repository migrations, lints the result, and runs a read-only legacy-schema smoke
+  check without remote credentials or project linking.
 - Local bootstrap and both CI platforms use CPython 3.12.14 and `uv` 0.12.6; locked checks fail
   on dependency drift without rewriting `uv.lock`.
 - Manual migration-deploy and scheduled refresh workflows exist, but their planned hardening and
@@ -70,9 +73,10 @@ not a changelog and does not make the roadmap executable.
 - `PR1 chore/freeze-operational-contract` — MERGED / COMPLETE.
 - `PR2 chore/pin-python-uv-toolchain` — MERGED / COMPLETE.
 - `PR3 fix/harden-two-laptop-update` — MERGED / COMPLETE.
-- `PR4 fix/harden-database-preflight` — IN PROGRESS; implementation is complete on its review
-  branch, pending review and merge.
-- `PR5 ci/validate-supabase-migrations` — NEXT.
+- `PR4 fix/harden-database-preflight` — MERGED / COMPLETE.
+- `PR5 ci/validate-supabase-migrations` — IN PROGRESS; migration validation CI exists on its local
+  review branch.
+- `PR6 ci/harden-production-migration-deploy` — NEXT.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates
