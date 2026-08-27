@@ -1,9 +1,6 @@
 name: Refresh CNBV data
 
 on:
-  schedule:
-    # CNBV releases are irregular. A cheap weekday poll detects new or revised files.
-    - cron: "17 23 * * 1-5"
   workflow_dispatch:
     inputs:
       period:

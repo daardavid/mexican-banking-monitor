@@ -28,6 +28,38 @@ def test_refresh_workflow_uses_modern_supabase_secret() -> None:
     assert "MBM_SUPABASE_SERVICE_ROLE_KEY" not in refresh_workflow
 
 
+def test_refresh_workflow_is_manual_preflight_only() -> None:
+    workflow_path = REPOSITORY_ROOT / ".github" / "workflows" / "refresh.yml"
+    assert workflow_path.is_file()
+
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    trigger = workflow.get("on", workflow.get(True))
+
+    assert set(trigger) == {"workflow_dispatch"}
+    assert "schedule" not in trigger
+    assert "cron" not in workflow_text.lower()
+    assert workflow["permissions"] == {"contents": "read"}
+
+    refresh_job = workflow["jobs"]["refresh"]
+    assert refresh_job["environment"] == "production"
+    steps = refresh_job["steps"]
+    assert steps[0]["uses"] == (
+        "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+    )
+    assert steps[1]["uses"] == (
+        "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9"
+    )
+    assert steps[1]["with"]["version"] == "0.12.6"
+
+    commands = [step["run"] for step in steps if "run" in step]
+    assert commands == ["uv sync --locked", "uv run mbm doctor --database"]
+    assert all(
+        re.search(r"(?:^|\s)mbm\s+refresh(?:\s|$)", command) is None
+        for command in commands
+    )
+
+
 def test_migration_validation_is_local_only_and_secret_free() -> None:
     workflow = yaml.safe_load(
         (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
