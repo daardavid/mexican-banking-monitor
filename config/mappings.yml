@@ -1,0 +1,5 @@
+schema_version: 2
+
+# Regulatory concepts and mappings stay empty until exact CNBV taxonomy evidence is curated.
+regulatory_concepts: []
+mappings: []
