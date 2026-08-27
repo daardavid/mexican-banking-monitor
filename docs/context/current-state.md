@@ -39,8 +39,8 @@ not a changelog and does not make the roadmap executable.
   main-only gate, serialized execution, pinned tooling, local integrity/destructive-DDL checks,
   structured-JSON remote-history and dry-run gates, pending-only push, and read-only post-push
   verification. It never repairs history, resets remote, or forces out-of-order migrations.
-- The placeholder refresh schedule is disabled on the PR7 branch. The workflow remains available
-  for manual database preflight; real `mbm refresh` is not implemented or enabled.
+- The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
+  database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
   main-only, requires a clean tree tracking `origin/main`, rejects local/diverged history, and uses
   explicit fetch plus fast-forward.
@@ -85,9 +85,11 @@ not a changelog and does not make the roadmap executable.
   passes on `main`.
 - `PR6 ci/harden-production-migration-deploy` — MERGED / COMPLETE; the hardened production
   deployment workflow has not been dispatched.
-- `PR7 chore/disable-placeholder-refresh-schedule` — IN PROGRESS; the placeholder schedule is
+- `PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE; the placeholder schedule is
   disabled while real `mbm refresh` remains unavailable.
-- `PR8 docs/regulatory-core-architecture-v1` — NEXT.
+- `PR8 docs/regulatory-core-architecture-v1` — IN PROGRESS; ADR contracts are being frozen on its
+  documentation-only branch.
+- `PR9 refactor/versioned-config-contracts` — NEXT.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates
