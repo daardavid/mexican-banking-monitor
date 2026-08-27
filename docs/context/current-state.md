@@ -35,8 +35,11 @@ not a changelog and does not make the roadmap executable.
   check without remote credentials or project linking.
 - Local bootstrap and both CI platforms use CPython 3.12.14 and `uv` 0.12.6; locked checks fail
   on dependency drift without rewriting `uv.lock`.
-- Manual migration-deploy and scheduled refresh workflows exist, but their planned hardening and
-  placeholder-schedule removal belong to later roadmap PRs.
+- Production migration deployment remains manual and is hardened on its review branch with a real
+  main-only gate, serialized execution, pinned tooling, local integrity/destructive-DDL checks,
+  structured-JSON remote-history and dry-run gates, pending-only push, and read-only post-push
+  verification. It never repairs history, resets remote, or forces out-of-order migrations.
+- The scheduled refresh workflow still exists; removal of its placeholder schedule belongs to PR7.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
   main-only, requires a clean tree tracking `origin/main`, rejects local/diverged history, and uses
   explicit fetch plus fast-forward.
@@ -64,6 +67,8 @@ not a changelog and does not make the roadmap executable.
   representative legacy objects required by the database preflight. No migration or repair was
   executed; remote inventory and any migration-state reconciliation decision remain pending and
   outside PR4.
+- PR6 implementation and review made no remote inspection, workflow dispatch, or production
+  deployment. The known remote mismatch remains unresolved.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -74,9 +79,11 @@ not a changelog and does not make the roadmap executable.
 - `PR2 chore/pin-python-uv-toolchain` — MERGED / COMPLETE.
 - `PR3 fix/harden-two-laptop-update` — MERGED / COMPLETE.
 - `PR4 fix/harden-database-preflight` — MERGED / COMPLETE.
-- `PR5 ci/validate-supabase-migrations` — IN PROGRESS; migration validation CI exists on its local
-  review branch.
-- `PR6 ci/harden-production-migration-deploy` — NEXT.
+- `PR5 ci/validate-supabase-migrations` — MERGED / COMPLETE; ephemeral migration CI exists and
+  passes on `main`.
+- `PR6 ci/harden-production-migration-deploy` — IN PROGRESS; production deployment hardening is on
+  its review branch and has not been dispatched.
+- `PR7 chore/disable-placeholder-refresh-schedule` — NEXT.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates

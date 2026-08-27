@@ -63,6 +63,31 @@ Planned v1 schemas are:
 
 Their physical creation belongs to later PRs. PR1 creates no schema or migration.
 
+## Production migration deployment safety
+
+Production migration deployment is manual, runs only from `main`, and is serialized. Before the
+only schema-mutating command, the workflow validates the local migration repository, compares the
+linked remote history, rejects destructive SQL in the pending suffix, and verifies the official
+Supabase dry-run plan. History and dry-run gates consume only the CLI's official structured JSON
+stdout; malformed or schema-incompatible payloads fail closed. A remote history with no trusted
+common baseline is not treated as a fresh database automatically; it requires separate inventory
+and reconciliation.
+
+Failure handling is fail-closed and forward-only:
+
+- History drift before push stops the workflow without mutation. It never repairs or rewrites the
+  remote history.
+- A failed or inconsistent dry-run stops the workflow without mutation.
+- Destructive DDL in a pending migration stops the workflow without mutation. PR6 defines no
+  exception or allowlist.
+- A failed or partially applied `db push` fails the workflow. Preserve the logs and remote state for
+  investigation; do not roll back, reset, or repair automatically.
+- Failed post-push history or no-op verification fails the workflow and preserves evidence for
+  investigation. It never attempts automatic reconciliation.
+
+The workflow verifies deployment state, not business-schema equivalence. The pending read-only
+remote inventory remains mandatory before the first v1 schema PR.
+
 ## Legacy coexistence and cutover
 
 - Do not change legacy primary keys for convenience.
