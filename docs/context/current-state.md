@@ -12,8 +12,8 @@ not a changelog and does not make the roadmap executable.
   metrics, audit, serving, and versioned public contracts.
 - Stack: CPython 3.12.14, `uv` 0.12.6, PostgreSQL/Supabase, Supabase CLI migrations, GitHub
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
-- General state: bootstrap/MVP foundation and PR1–PR9 are complete; PR10 is implementing the first
-  additive v1 schema primitives locally.
+- General state: bootstrap/MVP foundation and PR1–PR10 are complete; PR10 deployed and verified the
+  first additive v1 schema primitives in production.
 
 ## Implemented now
 
@@ -41,7 +41,7 @@ not a changelog and does not make the roadmap executable.
   main-only gate, serialized execution, pinned tooling, local integrity/destructive-DDL checks,
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
-  migrations.
+  migrations. The workflow has been successfully dispatched for the verified PR10 deployment.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -53,7 +53,7 @@ not a changelog and does not make the roadmap executable.
 
 ## Architecture status
 
-`Regulatory Data Core v1: APPROVED / NOT YET IMPLEMENTED`
+`Regulatory Data Core v1: APPROVED / IMPLEMENTATION STARTED — PR10 DEPLOYED; LATER LAYERS PENDING`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -63,8 +63,10 @@ and Git/YAML editorial authority with Python as executable authority.
 
 - Schemas `core`, `ops`, and `analytics` are legacy and frozen for the v1 transition.
 - `public.bank_metrics` is an existing legacy derived surface.
-- The single existing migration remains immutable.
-- No v1 schema, v1 writer, or v1 public contract exists yet; there is no dual-write.
+- The legacy initial migration remains immutable.
+- The seven v1 responsibility schemas and only the three PR10 registry primitive tables now exist;
+  no v1 writer or v1 public contract exists yet, and there is no dual-write.
+- `public.regulatory_bank_metrics_v1` remains absent.
 
 ## Operational state
 
@@ -73,15 +75,19 @@ and Git/YAML editorial authority with Python as executable authority.
 - Both laptops and GitHub jobs may use one shared remote Supabase backend.
 - The mandatory read-only remote inventory is complete. The remote was classified as pristine
   before bootstrap.
-- Initial remote baseline bootstrap is complete. Remote migration history is aligned at exactly
-  `202608250001 / initial_schema`; the legacy objects are present and all 10 legacy tables are
-  empty.
-- `mbm doctor --database` passes against the baseline, and the post-bootstrap migration dry-run is
-  a no-op.
-- No v1 schemas exist remotely yet.
+- Production migration history is aligned at exactly `202608250001 / initial_schema` and
+  `20260827223312 / data_core_schema_primitives`.
+- The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
+- `mbm doctor --database` passes against the legacy baseline, and the final production migration
+  dry-run is a no-op.
+- The remote contains the seven v1 responsibility schemas: `evidence`, `registry`, `reported`,
+  `semantic`, `metrics`, `audit`, and `serving`.
+- The remote contains `registry.measurement_units`, `registry.reporting_scopes`, and
+  `registry.reporting_scope_versions`; all three tables are empty.
+- No later-roadmap v1 objects exist, and `public.regulatory_bank_metrics_v1` remains absent.
 - The Vault-free production deployment hotfix is complete on `main`.
-- PR10 v1 responsibility schemas, measurement units, and reporting scopes are being implemented
-  and validated locally; no PR10 migration has been deployed to production.
+- PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
+  and verified in production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -95,16 +101,17 @@ and Git/YAML editorial authority with Python as executable authority.
 - `PR5 ci/validate-supabase-migrations` — MERGED / COMPLETE; ephemeral migration CI exists and
   passes on `main`.
 - `PR6 ci/harden-production-migration-deploy` — MERGED / COMPLETE; the hardened production
-  deployment workflow has not been dispatched.
+  deployment workflow was used successfully for PR10.
 - `PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE; the placeholder schedule is
   disabled while real `mbm refresh` remains unavailable.
 - `PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE; architecture ADRs are frozen on
   `main`.
 - `PR9 refactor/versioned-config-contracts` — MERGED / COMPLETE; typed editorial configuration
   contracts and semantic bundle validation are on `main`.
-- `PR10 feat/data-core-schema-primitives` — IN PROGRESS; the mandatory read-only remote inventory
-  and initial baseline bootstrap gates are complete, and v1 schema primitives are local only.
-- Regulatory Data Core v1 schema work — IN PROGRESS LOCALLY / NOT DEPLOYED TO PRODUCTION.
+- `PR10 feat/data-core-schema-primitives` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
+- `PR11 feat/evidence-catalog-schema` — NEXT.
+- Regulatory Data Core v1 schema work — STARTED / PR10 DEPLOYED; later layers remain pending.
 
 ## Known pending gates
 
