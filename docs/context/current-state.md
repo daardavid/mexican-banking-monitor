@@ -12,7 +12,8 @@ not a changelog and does not make the roadmap executable.
   metrics, audit, serving, and versioned public contracts.
 - Stack: CPython 3.12.14, `uv` 0.12.6, PostgreSQL/Supabase, Supabase CLI migrations, GitHub
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
-- General state: bootstrap/MVP foundation exists; the approved v1 architecture has not been built.
+- General state: bootstrap/MVP foundation and PR1–PR9 are complete; PR10 is implementing the first
+  additive v1 schema primitives locally.
 
 ## Implemented now
 
@@ -78,6 +79,9 @@ and Git/YAML editorial authority with Python as executable authority.
 - `mbm doctor --database` passes against the baseline, and the post-bootstrap migration dry-run is
   a no-op.
 - No v1 schemas exist remotely yet.
+- The Vault-free production deployment hotfix is complete on `main`.
+- PR10 v1 responsibility schemas, measurement units, and reporting scopes are being implemented
+  and validated locally; no PR10 migration has been deployed to production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -98,9 +102,9 @@ and Git/YAML editorial authority with Python as executable authority.
   `main`.
 - `PR9 refactor/versioned-config-contracts` — MERGED / COMPLETE; typed editorial configuration
   contracts and semantic bundle validation are on `main`.
-- `PR10 feat/data-core-schema-primitives` — NEXT; the mandatory read-only remote inventory and
-  initial baseline bootstrap gates are complete.
-- Regulatory Data Core v1 schema work — NOT STARTED.
+- `PR10 feat/data-core-schema-primitives` — IN PROGRESS; the mandatory read-only remote inventory
+  and initial baseline bootstrap gates are complete, and v1 schema primitives are local only.
+- Regulatory Data Core v1 schema work — IN PROGRESS LOCALLY / NOT DEPLOYED TO PRODUCTION.
 
 ## Known pending gates
 

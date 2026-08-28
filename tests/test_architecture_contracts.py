@@ -122,5 +122,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE" in current_state
     assert "PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE" in current_state
     assert "PR9 refactor/versioned-config-contracts` — MERGED / COMPLETE" in current_state
-    assert "PR10 feat/data-core-schema-primitives` — NEXT" in current_state
-    assert "Regulatory Data Core v1 schema work — NOT STARTED" in current_state
+    assert "PR10 feat/data-core-schema-primitives` — IN PROGRESS" in current_state
+    assert (
+        "Regulatory Data Core v1 schema work — IN PROGRESS LOCALLY / NOT DEPLOYED TO PRODUCTION"
+        in current_state
+    )
