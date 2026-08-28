@@ -88,7 +88,7 @@ jobs:
       - name: Preview pending migrations
         shell: bash
         run: |
-          supabase db push --linked --dry-run --output-format json \
+          supabase db push --linked --dry-run --skip-vault --output-format json \
             > "$RUNNER_TEMP/migration-dry-run-before.json"
 
       - name: Verify dry-run plan
@@ -100,7 +100,7 @@ jobs:
 
       - name: Push pending migrations
         if: steps.history.outputs.has_pending == 'true'
-        run: supabase db push --linked --yes
+        run: supabase db push --linked --skip-vault --yes
 
       - name: Inspect migration history after push
         shell: bash
@@ -119,7 +119,7 @@ jobs:
       - name: Verify post-push dry-run is a no-op
         shell: bash
         run: |
-          supabase db push --linked --dry-run --output-format json \
+          supabase db push --linked --dry-run --skip-vault --output-format json \
             > "$RUNNER_TEMP/migration-dry-run-after.json"
           uv run --no-project --python 3.12.14 python \
             scripts/validate_production_migrations.py dry-run \

@@ -26,8 +26,8 @@ not a changelog and does not make the roadmap executable.
 - Exact domain models/formulas, YTD conversion, cohort helpers, and HTTP artifact validation/hash
   primitives with tests.
 - Version-controlled YAML editorial definitions for sources, institutions/cohorts, controlled
-  reporting scopes, canonical/source concepts, mappings, and metric metadata. PR9 is implementing
-  strict Pydantic contracts, duplicate-safe YAML loading, and whole-bundle cross-validation.
+  reporting scopes, canonical/source concepts, mappings, and metric metadata, with strict Pydantic
+  contracts, duplicate-safe YAML loading, and whole-bundle cross-validation.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -38,8 +38,9 @@ not a changelog and does not make the roadmap executable.
   on dependency drift without rewriting `uv.lock`.
 - Production migration deployment remains manual and is hardened on `main` with a real
   main-only gate, serialized execution, pinned tooling, local integrity/destructive-DDL checks,
-  structured-JSON remote-history and dry-run gates, pending-only push, and read-only post-push
-  verification. It never repairs history, resets remote, or forces out-of-order migrations.
+  structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
+  post-push verification. It never repairs history, resets remote, or forces out-of-order
+  migrations.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -69,13 +70,14 @@ and Git/YAML editorial authority with Python as executable authority.
 - Development uses two laptops with independent Git clones outside OneDrive or other sync folders.
 - GitHub synchronizes code, branches, and migrations.
 - Both laptops and GitHub jobs may use one shared remote Supabase backend.
-- A read-only smoke test confirmed that the shared backend is reachable but currently lacks the
-  representative legacy objects required by the database preflight. No migration or repair was
-  executed; remote inventory and any migration-state reconciliation decision remain pending and
-  outside PR4.
-- PR6 implementation and review made no remote inspection, workflow dispatch, or production
-  deployment, and the hardened production migration deploy has not been dispatched. The known
-  remote mismatch remains unresolved.
+- The mandatory read-only remote inventory is complete. The remote was classified as pristine
+  before bootstrap.
+- Initial remote baseline bootstrap is complete. Remote migration history is aligned at exactly
+  `202608250001 / initial_schema`; the legacy objects are present and all 10 legacy tables are
+  empty.
+- `mbm doctor --database` passes against the baseline, and the post-bootstrap migration dry-run is
+  a no-op.
+- No v1 schemas exist remotely yet.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -94,18 +96,14 @@ and Git/YAML editorial authority with Python as executable authority.
   disabled while real `mbm refresh` remains unavailable.
 - `PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE; architecture ADRs are frozen on
   `main`.
-- `PR9 refactor/versioned-config-contracts` — IN PROGRESS; typed editorial configuration contracts
-  and semantic bundle validation are being implemented locally.
-- `PR10 feat/data-core-schema-primitives` — NEXT, but BLOCKED until the mandatory read-only remote
-  inventory and reconciliation gate is completed.
+- `PR9 refactor/versioned-config-contracts` — MERGED / COMPLETE; typed editorial configuration
+  contracts and semantic bundle validation are on `main`.
+- `PR10 feat/data-core-schema-primitives` — NEXT; the mandatory read-only remote inventory and
+  initial baseline bootstrap gates are complete.
 - Regulatory Data Core v1 schema work — NOT STARTED.
 
 ## Known pending gates
 
-- A read-only remote Supabase inventory is still pending. It must verify migration history,
-  objects, dependencies, and relevant counts before the first PR that creates or deploys v1 schema.
-  The known shared-remote mismatch remains unresolved; inventory and an explicit reconciliation
-  decision are mandatory before PR10.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Supabase Storage suitability/retention must be confirmed before artifact backfill.

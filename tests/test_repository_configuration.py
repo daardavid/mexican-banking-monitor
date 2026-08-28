@@ -1,4 +1,5 @@
 import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -220,7 +221,7 @@ def test_production_migration_deploy_pins_tools_and_orders_all_gates() -> None:
             "migration-history-before.json",
         ),
         "Preview pending migrations": (
-            "supabase db push --linked --dry-run --output-format json",
+            "supabase db push --linked --dry-run --skip-vault --output-format json",
             "migration-dry-run-before.json",
         ),
         "Inspect migration history after push": (
@@ -228,7 +229,7 @@ def test_production_migration_deploy_pins_tools_and_orders_all_gates() -> None:
             "migration-history-after.json",
         ),
         "Verify post-push dry-run is a no-op": (
-            "supabase db push --linked --dry-run --output-format json",
+            "supabase db push --linked --dry-run --skip-vault --output-format json",
             "migration-dry-run-after.json",
         ),
     }
@@ -245,11 +246,58 @@ def test_production_migration_deploy_pins_tools_and_orders_all_gates() -> None:
     assert "migration-dry-run-before.json" in named_steps["Verify dry-run plan"]["run"]
     push = named_steps["Push pending migrations"]
     assert push["if"] == "steps.history.outputs.has_pending == 'true'"
-    assert push["run"] == "supabase db push --linked --yes"
+    assert push["run"] == "supabase db push --linked --skip-vault --yes"
     assert "--require-aligned" in named_steps["Verify migration history after push"]["run"]
     assert "migration-history-after.json" in named_steps[
         "Verify migration history after push"
     ]["run"]
+
+
+def test_production_migration_db_push_commands_are_vault_free() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    steps = workflow["jobs"]["migrate"]["steps"]
+    commands = []
+
+    for step in steps:
+        for line in step.get("run", "").splitlines():
+            command = line.strip().removesuffix("\\").rstrip()
+            if command.startswith("supabase db push "):
+                commands.append((step.get("name"), shlex.split(command)))
+
+    expected_arguments = [
+        (
+            "Preview pending migrations",
+            ["--linked", "--dry-run", "--skip-vault", "--output-format", "json"],
+        ),
+        (
+            "Push pending migrations",
+            ["--linked", "--skip-vault", "--yes"],
+        ),
+        (
+            "Verify post-push dry-run is a no-op",
+            ["--linked", "--dry-run", "--skip-vault", "--output-format", "json"],
+        ),
+    ]
+
+    assert all(tokens[:3] == ["supabase", "db", "push"] for _, tokens in commands)
+    actual_arguments = [(name, tokens[3:]) for name, tokens in commands]
+    assert actual_arguments == expected_arguments
+    arguments = [tokens for _, tokens in actual_arguments]
+    assert all("--skip-vault" in tokens for tokens in arguments)
+    assert sum("--dry-run" in tokens for tokens in arguments) == 2
+    assert "--yes" in arguments[1]
+
+    forbidden = ("--include-all", "--include-seed", "--include-roles", "repair", "reset")
+    assert all(
+        forbidden_token not in token.lower()
+        for tokens in arguments
+        for token in tokens
+        for forbidden_token in forbidden
+    )
 
 
 def test_production_migration_deploy_never_bypasses_or_repairs_history() -> None:
