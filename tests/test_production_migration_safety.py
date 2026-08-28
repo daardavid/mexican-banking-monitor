@@ -16,6 +16,7 @@ MODULE_SPEC.loader.exec_module(MIGRATION_SAFETY)
 
 LEGACY_MIGRATION_NAME = MIGRATION_SAFETY.LEGACY_MIGRATION_NAME
 LEGACY_MIGRATION_SHA256 = MIGRATION_SAFETY.LEGACY_MIGRATION_SHA256
+PR10_MIGRATION_NAME = "20260827223312_data_core_schema_primitives.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -63,9 +64,91 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     migrations = load_migrations(REPOSITORY_ROOT / "supabase" / "migrations")
     content = migrations[0].path.read_bytes().replace(b"\r\n", b"\n")
 
-    assert [item.path.name for item in migrations] == [LEGACY_MIGRATION_NAME]
+    assert [item.path.name for item in migrations] == [
+        LEGACY_MIGRATION_NAME,
+        PR10_MIGRATION_NAME,
+    ]
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
+
+
+def test_pr10_migration_is_additive_private_and_unseeded() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR10_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    for schema in (
+        "evidence",
+        "registry",
+        "reported",
+        "semantic",
+        "metrics",
+        "audit",
+        "serving",
+    ):
+        assert f"create schema {schema};" in normalized
+        assert f"create schema if not exists {schema}" not in normalized
+        assert f"revoke all privileges on schema {schema} from public, anon, authenticated;" in (
+            normalized
+        )
+
+    assert "create table registry.measurement_units" in normalized
+    assert "create table registry.reporting_scopes" in normalized
+    assert "create table registry.reporting_scope_versions" in normalized
+    assert "default gen_random_uuid()" in normalized
+    assert "uuidv7" not in normalized
+    assert "float" not in normalized
+    assert "insert into" not in normalized
+    assert "create schema if not exists" not in normalized
+    assert forbidden_operations(migration_text) == []
+
+    for protected_object in (
+        "core.",
+        "ops.",
+        "analytics.",
+        "public.bank_metrics",
+        "public.regulatory_bank_metrics_v1",
+    ):
+        assert protected_object not in normalized
+
+
+def test_pr10_reporting_scope_versions_preserve_stable_identity() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR10_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    identity_definition = normalized.split(
+        "create table registry.reporting_scopes (", 1
+    )[1].split(");", 1)[0]
+    version_definition = normalized.split(
+        "create table registry.reporting_scope_versions (", 1
+    )[1].split(");", 1)[0]
+
+    assert "reporting_scope_id uuid primary key" in identity_definition
+    assert "scope_code text not null unique" in identity_definition
+    assert "definition_version" not in identity_definition
+    assert "definition_snapshot" not in identity_definition
+
+    assert "reporting_scope_version_id uuid primary key" in version_definition
+    assert "references registry.reporting_scopes(reporting_scope_id)" in version_definition
+    assert "unique (reporting_scope_id, definition_version)" in version_definition
+    assert "unique (reporting_scope_id)" not in version_definition
+    assert "scope_code" not in version_definition
+    for approved_check in (
+        "check (definition_version > 0)",
+        "check (btrim(label) <> '')",
+        "check (btrim(definition) <> '')",
+        "check (btrim(rationale) <> '')",
+        "check (lifecycle in ('draft', 'active', 'review_required', 'retired'))",
+        "check (jsonb_typeof(definition_snapshot) = 'object')",
+        "check (definition_hash ~ '^[a-f0-9]{64}$')",
+        "check (git_sha ~ '^(?:[a-f0-9]{40}|[a-f0-9]{64})$')",
+    ):
+        assert approved_check in version_definition
+    assert "cascade" not in version_definition
+    assert "on delete" not in version_definition
+    assert "on update" not in version_definition
 
 
 @pytest.mark.parametrize(

@@ -136,6 +136,21 @@ def test_migration_smoke_is_present_and_read_only() -> None:
         "bank_metrics",
         "relrowsecurity",
         "Public metrics are readable",
+        "evidence",
+        "registry",
+        "reported",
+        "semantic",
+        "metrics",
+        "audit",
+        "serving",
+        "measurement_units",
+        "reporting_scopes",
+        "reporting_scope_versions",
+        "gen_random_uuid()",
+        "access_gate",
+        "scope_versioning_gate",
+        "scope_boundary_gate",
+        "regulatory_bank_metrics_v1",
     )
     for required_contract in required_catalog_contracts:
         assert required_contract in smoke_sql

@@ -19,6 +19,10 @@ facts, runs, decisions, and results. Every published definition preserves its no
 definition/config hash, Git SHA, and, where applicable, implementation key/version. Production
 definition snapshots are inserted by the publishing process and are never edited manually.
 
+Reporting scope identity and reporting scope definition versions are separate. The stable UUID/code
+identity lives in `registry.reporting_scopes`; append-only, immutable definition snapshots live in
+`registry.reporting_scope_versions` and preserve their definition version, hash, and Git SHA.
+
 Python is executable authority for parsers, transformations selected by implementation key, and
 metric calculations. Formula text in YAML or the database is descriptive and is never executed.
 There is no second executable implementation of the same definition in YAML, SQL text stored as

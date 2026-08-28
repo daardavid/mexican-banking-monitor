@@ -96,11 +96,19 @@ def test_scope_and_definition_authorities_are_explicit() -> None:
     assert "never free text" in scope
     assert "exact scope equality" in scope
     assert "no implicit compatibility matrix" in scope
+    assert "`registry.reporting_scopes`" in scope
+    assert "`registry.reporting_scope_versions`" in scope
+    assert "definition revision does not create a new" in scope
+    assert "scope code rather than silently redefining" in scope
 
     authority = _contract(7)
     assert "Git/YAML is editorial authority" in authority
     assert "Python is executable authority" in authority
     assert "queryable immutable definition snapshots" in authority
+    assert "Reporting scope identity and reporting scope definition versions are separate" in (
+        authority
+    )
+    assert "append-only, immutable definition snapshots" in authority
     assert "Formula text in YAML or the database" in authority
     for term in ("EXACT", "HARMONIZED", "PROXY", "NOT_COMPARABLE"):
         assert f"`{term}`" in authority
@@ -122,5 +130,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR7 chore/disable-placeholder-refresh-schedule` — MERGED / COMPLETE" in current_state
     assert "PR8 docs/regulatory-core-architecture-v1` — MERGED / COMPLETE" in current_state
     assert "PR9 refactor/versioned-config-contracts` — MERGED / COMPLETE" in current_state
-    assert "PR10 feat/data-core-schema-primitives` — NEXT" in current_state
-    assert "Regulatory Data Core v1 schema work — NOT STARTED" in current_state
+    assert "PR10 feat/data-core-schema-primitives` — IN PROGRESS" in current_state
+    assert (
+        "Regulatory Data Core v1 schema work — IN PROGRESS LOCALLY / NOT DEPLOYED TO PRODUCTION"
+        in current_state
+    )

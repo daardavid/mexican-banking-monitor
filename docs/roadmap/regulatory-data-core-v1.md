@@ -207,7 +207,8 @@ SHA-256/location.
 | `registry.institution_aliases` | UUID PK/FKs institution/source; alias type, normalized alias, provenance, validity. A rename does not create a new institution. |
 | `registry.institution_cohorts` | UUID PK/FK institution; code, validity, rationale, definition hash. Never silently inferred. |
 | `registry.measurement_units` | Text code PK; dimension, optional currency, exact multiplier. Git-versioned reference. |
-| `registry.reporting_scopes` | UUID PK; unique scope code, label/definition/evidence, definition version/hash. Only source-proven scopes. |
+| `registry.reporting_scopes` | Stable UUID PK and unique scope code identity. Only source-proven scopes. |
+| `registry.reporting_scope_versions` | UUID PK/FK scope; unique scope/definition version, label, definition, rationale, lifecycle, immutable snapshot/hash/Git SHA. |
 | `registry.regulatory_concepts` | UUID PK/FKs source/unit; external code, raw label, taxonomy version, data nature, expected frequency, validity. New row for semantic change. |
 | `registry.regulatory_concept_scopes` | Composite PK/FKs concept/scope; declares allowed source scopes. |
 | `reported.reported_facts` | Bigint PK/FKs registration, concept, scope, artifact, run, predecessor; economic time, currency/unit/dimensions, raw/parsed values, raw label, locator/hash, parser/config/identity versions, fact-key hash, observed time, supersession reason. Payload append-only. |
