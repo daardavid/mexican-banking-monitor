@@ -195,7 +195,8 @@ SHA-256/location.
 | Object | Purpose and essential contract |
 |---|---|
 | `evidence.regulators` | UUID PK; unique regulator code, name, country. Git-versioned reference data. |
-| `evidence.sources` | UUID PK/FK regulator; unique source code, adapter key, sector, config hash, active flag. |
+| `evidence.sources` | Stable UUID PK/FK regulator identity with a unique source code. |
+| `evidence.source_definition_versions` | Immutable Git/YAML source-definition versions with queryable projections, normalized snapshot, config hash, and Git SHA. This ADR 0007 implementation refinement mirrors reporting-scope identity/version separation. |
 | `evidence.source_releases` | UUID PK/FK source/self-supersedes; family key, revision, covered period, `published_at`, `first_observed_at`, identity hash, metadata. Append-only. |
 | `evidence.source_artifacts` | UUID PK/FK release; filename, original/final URL, MIME, bytes, SHA-256, role, storage backend/bucket/key, first observed. Payload immutable. |
 | `audit.ingestion_runs` | UUID PK/FK source; trigger, parameters, parser/config/identity/Git versions, status, times, explicit counters. Terminal state immutable. |
@@ -704,7 +705,7 @@ There are 37 ordered PRs when PR15a is counted. Do not renumber or implement lat
 | 8 | `docs/regulatory-core-architecture-v1` | ADRs for schema map, IDs, four times, review, supersession, scope, authority. | Phase 0. | Contracts approved/consistent. |
 | 9 | `refactor/versioned-config-contracts` | Pydantic sources/institutions/reporting scopes/concepts/mappings/metrics. | PR8. | Cross-references, enums, duplicates, vocabularies, implementation keys validated. |
 | 10 | `feat/data-core-schema-primitives` | Create responsibility schemas, units, scopes, primitives additively. | PR5, PR8. | Fresh reset; legacy intact; no legacy schema reuse. |
-| 11 | `feat/evidence-catalog-schema` | Regulators, sources, releases, artifacts, source revision lineage. | PR10. | Identity/revision constraints verified; legacy releases untouched. |
+| 11 | `feat/evidence-catalog-schema` | Regulators, stable sources, immutable source-definition versions, releases, artifacts, and source revision lineage. | PR10. | Identity/version/revision constraints verified; legacy releases untouched. |
 | 12 | `feat/artifact-storage-contract` | Local/Supabase content-addressed ArtifactStore. | PR11. | Put-if-absent/no overwrite. |
 | 13 | `feat/ingestion-run-lifecycle` | Runs, run-artifacts, counters, restart, parser/config/identity provenance. | PR11–12. | Failed/no-change/success observable and idempotent. |
 | 14 | `feat/institution-identity-schema` | `registry` institutions, registrations, aliases, cohorts, scope/concept constraints. | PR10. | Regulator IDs separated; valid effective ranges/scopes. |
