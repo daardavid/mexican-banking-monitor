@@ -42,40 +42,54 @@ create table registry.measurement_units (
 create table registry.reporting_scopes (
     reporting_scope_id uuid primary key default gen_random_uuid(),
     scope_code text not null unique,
+    constraint reporting_scopes_scope_code_not_blank
+        check (btrim(scope_code) <> '')
+);
+
+create table registry.reporting_scope_versions (
+    reporting_scope_version_id uuid primary key default gen_random_uuid(),
+    reporting_scope_id uuid not null,
     definition_version integer not null,
     label text not null,
     definition text not null,
     rationale text not null,
+    lifecycle text not null,
     definition_snapshot jsonb not null,
     definition_hash text not null,
     git_sha text not null,
-    constraint reporting_scopes_scope_code_not_blank
-        check (btrim(scope_code) <> ''),
-    constraint reporting_scopes_definition_version_positive
+    constraint reporting_scope_versions_scope_fkey
+        foreign key (reporting_scope_id)
+        references registry.reporting_scopes(reporting_scope_id),
+    constraint reporting_scope_versions_scope_definition_key
+        unique (reporting_scope_id, definition_version),
+    constraint reporting_scope_versions_definition_version_positive
         check (definition_version > 0),
-    constraint reporting_scopes_label_not_blank
+    constraint reporting_scope_versions_label_not_blank
         check (btrim(label) <> ''),
-    constraint reporting_scopes_definition_not_blank
+    constraint reporting_scope_versions_definition_not_blank
         check (btrim(definition) <> ''),
-    constraint reporting_scopes_rationale_not_blank
+    constraint reporting_scope_versions_rationale_not_blank
         check (btrim(rationale) <> ''),
-    constraint reporting_scopes_definition_snapshot_object
+    constraint reporting_scope_versions_lifecycle_valid
+        check (lifecycle in ('draft', 'active', 'review_required', 'retired')),
+    constraint reporting_scope_versions_definition_snapshot_object
         check (jsonb_typeof(definition_snapshot) = 'object'),
-    constraint reporting_scopes_definition_hash_sha256
+    constraint reporting_scope_versions_definition_hash_sha256
         check (definition_hash ~ '^[a-f0-9]{64}$'),
-    constraint reporting_scopes_git_sha_full
+    constraint reporting_scope_versions_git_sha_full
         check (git_sha ~ '^(?:[a-f0-9]{40}|[a-f0-9]{64})$')
 );
 
 alter table registry.measurement_units enable row level security;
 alter table registry.reporting_scopes enable row level security;
+alter table registry.reporting_scope_versions enable row level security;
 
 revoke all privileges
-on registry.measurement_units, registry.reporting_scopes
+on registry.measurement_units, registry.reporting_scopes, registry.reporting_scope_versions
 from public, anon, authenticated;
 
 grant select, insert
-on registry.measurement_units, registry.reporting_scopes
+on registry.measurement_units, registry.reporting_scopes, registry.reporting_scope_versions
 to service_role;
 
 commit;

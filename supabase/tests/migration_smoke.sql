@@ -9,7 +9,8 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('analytics', 'metric_definitions', 'r'),
         ('public', 'bank_metrics', 'r'),
         ('registry', 'measurement_units', 'r'),
-        ('registry', 'reporting_scopes', 'r')
+        ('registry', 'reporting_scopes', 'r'),
+        ('registry', 'reporting_scope_versions', 'r')
 )
 select
     format('%I.%I', expected.schema_name, expected.relation_name) as relation_name,
@@ -32,7 +33,8 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('analytics', 'metric_definitions', 'r'),
         ('public', 'bank_metrics', 'r'),
         ('registry', 'measurement_units', 'r'),
-        ('registry', 'reporting_scopes', 'r')
+        ('registry', 'reporting_scopes', 'r'),
+        ('registry', 'reporting_scope_versions', 'r')
 ), relation_gate as (
     select bool_and(actual.oid is not null and actual.relkind = expected.expected_kind::"char")
         as valid
@@ -50,12 +52,14 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
     ]) as required_schema
 ), primitive_columns_gate as (
     select
-        count(*) = 13
+        count(*) = 16
         and (
-            select count(*) = 13
+            select count(*) = 16
             from information_schema.columns
             where table_schema = 'registry'
-              and table_name in ('measurement_units', 'reporting_scopes')
+              and table_name in (
+                  'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+              )
         ) as valid
     from (values
         ('measurement_units', 'unit_code', 'text', 'NO'),
@@ -64,13 +68,16 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('measurement_units', 'multiplier', 'numeric', 'NO'),
         ('reporting_scopes', 'reporting_scope_id', 'uuid', 'NO'),
         ('reporting_scopes', 'scope_code', 'text', 'NO'),
-        ('reporting_scopes', 'definition_version', 'integer', 'NO'),
-        ('reporting_scopes', 'label', 'text', 'NO'),
-        ('reporting_scopes', 'definition', 'text', 'NO'),
-        ('reporting_scopes', 'rationale', 'text', 'NO'),
-        ('reporting_scopes', 'definition_snapshot', 'jsonb', 'NO'),
-        ('reporting_scopes', 'definition_hash', 'text', 'NO'),
-        ('reporting_scopes', 'git_sha', 'text', 'NO')
+        ('reporting_scope_versions', 'reporting_scope_version_id', 'uuid', 'NO'),
+        ('reporting_scope_versions', 'reporting_scope_id', 'uuid', 'NO'),
+        ('reporting_scope_versions', 'definition_version', 'integer', 'NO'),
+        ('reporting_scope_versions', 'label', 'text', 'NO'),
+        ('reporting_scope_versions', 'definition', 'text', 'NO'),
+        ('reporting_scope_versions', 'rationale', 'text', 'NO'),
+        ('reporting_scope_versions', 'lifecycle', 'text', 'NO'),
+        ('reporting_scope_versions', 'definition_snapshot', 'jsonb', 'NO'),
+        ('reporting_scope_versions', 'definition_hash', 'text', 'NO'),
+        ('reporting_scope_versions', 'git_sha', 'text', 'NO')
     ) as expected(table_name, column_name, data_type, is_nullable)
     join information_schema.columns actual
       on actual.table_schema = 'registry'
@@ -80,16 +87,18 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
      and actual.is_nullable = expected.is_nullable
 ), primitive_constraints_gate as (
     select
-        count(*) = 15
+        count(*) = 19
         and (
-            select count(*) = 15
+            select count(*) = 19
             from pg_catalog.pg_constraint all_constraints
             join pg_catalog.pg_class constrained_relation
               on constrained_relation.oid = all_constraints.conrelid
             join pg_catalog.pg_namespace constrained_namespace
               on constrained_namespace.oid = constrained_relation.relnamespace
             where constrained_namespace.nspname = 'registry'
-              and constrained_relation.relname in ('measurement_units', 'reporting_scopes')
+              and constrained_relation.relname in (
+                  'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+              )
         ) as valid
     from (values
         ('measurement_units', 'measurement_units_pkey', 'p', 'PRIMARY KEY (unit_code)'),
@@ -101,13 +110,23 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             'PRIMARY KEY (reporting_scope_id)'),
         ('reporting_scopes', 'reporting_scopes_scope_code_key', 'u', 'UNIQUE (scope_code)'),
         ('reporting_scopes', 'reporting_scopes_scope_code_not_blank', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_definition_version_positive', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_label_not_blank', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_definition_not_blank', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_rationale_not_blank', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_definition_snapshot_object', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_definition_hash_sha256', 'c', null),
-        ('reporting_scopes', 'reporting_scopes_git_sha_full', 'c', null)
+        ('reporting_scope_versions', 'reporting_scope_versions_pkey', 'p',
+            'PRIMARY KEY (reporting_scope_version_id)'),
+        ('reporting_scope_versions', 'reporting_scope_versions_scope_fkey', 'f',
+            'FOREIGN KEY (reporting_scope_id) REFERENCES registry.reporting_scopes(reporting_scope_id)'),
+        ('reporting_scope_versions', 'reporting_scope_versions_scope_definition_key', 'u',
+            'UNIQUE (reporting_scope_id, definition_version)'),
+        ('reporting_scope_versions',
+            'reporting_scope_versions_definition_version_positive', 'c', null),
+        ('reporting_scope_versions', 'reporting_scope_versions_label_not_blank', 'c', null),
+        ('reporting_scope_versions', 'reporting_scope_versions_definition_not_blank', 'c', null),
+        ('reporting_scope_versions', 'reporting_scope_versions_rationale_not_blank', 'c', null),
+        ('reporting_scope_versions', 'reporting_scope_versions_lifecycle_valid', 'c', null),
+        ('reporting_scope_versions',
+            'reporting_scope_versions_definition_snapshot_object', 'c', null),
+        ('reporting_scope_versions',
+            'reporting_scope_versions_definition_hash_sha256', 'c', null),
+        ('reporting_scope_versions', 'reporting_scope_versions_git_sha_full', 'c', null)
     ) as expected(table_name, constraint_name, constraint_kind, constraint_definition)
     join pg_catalog.pg_namespace namespace on namespace.nspname = 'registry'
     join pg_catalog.pg_class relation
@@ -121,12 +140,47 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
          expected.constraint_definition is null
          or pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
      )
+), scope_versioning_gate as (
+    select
+        count(*) = 2
+        and not exists (
+            select 1
+            from pg_catalog.pg_constraint identity_only_unique
+            join pg_catalog.pg_class version_relation
+              on version_relation.oid = identity_only_unique.conrelid
+            join pg_catalog.pg_namespace version_namespace
+              on version_namespace.oid = version_relation.relnamespace
+            where version_namespace.nspname = 'registry'
+              and version_relation.relname = 'reporting_scope_versions'
+              and identity_only_unique.contype = 'u'
+              and pg_catalog.pg_get_constraintdef(identity_only_unique.oid)
+                  = 'UNIQUE (reporting_scope_id)'
+        ) as valid
+    from (values
+        ('reporting_scope_versions_scope_fkey', 'f',
+            'FOREIGN KEY (reporting_scope_id) REFERENCES registry.reporting_scopes(reporting_scope_id)'),
+        ('reporting_scope_versions_scope_definition_key', 'u',
+            'UNIQUE (reporting_scope_id, definition_version)')
+    ) as expected(constraint_name, constraint_kind, constraint_definition)
+    join pg_catalog.pg_namespace namespace on namespace.nspname = 'registry'
+    join pg_catalog.pg_class relation
+      on relation.relnamespace = namespace.oid
+     and relation.relname = 'reporting_scope_versions'
+    join pg_catalog.pg_constraint actual
+      on actual.conrelid = relation.oid
+     and actual.conname = expected.constraint_name
+     and actual.contype = expected.constraint_kind::"char"
+     and pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
 ), uuid_gate as (
-    select column_default = 'gen_random_uuid()' as valid
-    from information_schema.columns
-    where table_schema = 'registry'
-      and table_name = 'reporting_scopes'
-      and column_name = 'reporting_scope_id'
+    select count(*) = 2 and bool_and(column_default = 'gen_random_uuid()') as valid
+    from (values
+        ('reporting_scopes', 'reporting_scope_id'),
+        ('reporting_scope_versions', 'reporting_scope_version_id')
+    ) as expected(table_name, column_name)
+    join information_schema.columns actual
+      on actual.table_schema = 'registry'
+     and actual.table_name = expected.table_name
+     and actual.column_name = expected.column_name
 ), access_gate as (
     select
         (
@@ -146,7 +200,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
                 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
             ))
             from unnest(array['anon', 'authenticated']) as role_name
-            cross join unnest(array['measurement_units', 'reporting_scopes']) as table_name
+            cross join unnest(array[
+                'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+            ]) as table_name
         )
         and (
             select bool_and(
@@ -171,18 +227,31 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
                     'UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
                 )
             )
-            from unnest(array['measurement_units', 'reporting_scopes']) as table_name
+            from unnest(array[
+                'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+            ]) as table_name
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_policies
+            where schemaname = 'registry'
+              and tablename in (
+                  'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+              )
         ) as valid
 ), primitive_state_gate as (
     select
-        count(*) = 2
+        count(*) = 3
         and bool_and(relation.relrowsecurity)
         and not exists (select 1 from registry.measurement_units)
-        and not exists (select 1 from registry.reporting_scopes) as valid
+        and not exists (select 1 from registry.reporting_scopes)
+        and not exists (select 1 from registry.reporting_scope_versions) as valid
     from pg_catalog.pg_class relation
     join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'registry'
-      and relation.relname in ('measurement_units', 'reporting_scopes')
+      and relation.relname in (
+          'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+      )
 ), scope_boundary_gate as (
     select
         not exists (
@@ -202,7 +271,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
               on namespace.oid = relation.relnamespace
             where namespace.nspname = 'registry'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
-              and relation.relname not in ('measurement_units', 'reporting_scopes')
+              and relation.relname not in (
+                  'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+              )
         )
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
 ), rls_gate as (
@@ -228,6 +299,7 @@ select
     and schema_gate.valid
     and primitive_columns_gate.valid
     and primitive_constraints_gate.valid
+    and scope_versioning_gate.valid
     and uuid_gate.valid
     and access_gate.valid
     and primitive_state_gate.valid
@@ -238,6 +310,7 @@ from relation_gate
 cross join schema_gate
 cross join primitive_columns_gate
 cross join primitive_constraints_gate
+cross join scope_versioning_gate
 cross join uuid_gate
 cross join access_gate
 cross join primitive_state_gate

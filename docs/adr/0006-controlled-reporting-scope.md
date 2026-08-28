@@ -17,6 +17,12 @@ Reporting scope is a controlled dimension whose future editorial authority is
 scope. Do not pre-seed speculative `regulatory_perimeter`, `financial_group`, or other unevidenced
 scopes.
 
+Scope identity is stable in `registry.reporting_scopes` through a durable UUID and unique
+`scope_code`. Editorial revisions keep that identity and are stored separately as immutable
+versions in `registry.reporting_scope_versions`; a definition revision does not create a new
+logical scope. A real change to the represented economic or regulatory perimeter requires a new
+scope code rather than silently redefining the existing scope.
+
 Scope is mandatory on reported facts and participates in fact identity, revision/current grouping,
 idempotency, mapping selection, metric identity, metric input validation, and publication. The same
 institution, concept, and economic period under different scopes represents different facts.
