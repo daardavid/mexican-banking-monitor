@@ -136,9 +136,13 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert "20260827223312 / data_core_schema_primitives" in current_state
-    assert "PR11 feat/evidence-catalog-schema` — NEXT." in current_state
     assert (
-        "Regulatory Data Core v1 schema work — STARTED / PR10 DEPLOYED; later layers remain "
-        "pending."
+        "PR11 feat/evidence-catalog-schema` — IMPLEMENTED / PRODUCTION DEPLOYMENT PENDING."
         in current_state
     )
+    assert (
+        "Regulatory Data Core v1 schema work — STARTED / PR10 DEPLOYED; PR11 IMPLEMENTED / "
+        "NOT YET\n  DEPLOYED; later layers pending."
+        in current_state
+    )
+    assert "PR12 remains blocked until the PR11 production deployment is verified" in current_state

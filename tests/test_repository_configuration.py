@@ -119,7 +119,7 @@ def test_migration_validation_pins_cli_and_fails_fast() -> None:
     )
 
 
-def test_migration_smoke_is_present_and_read_only() -> None:
+def test_migration_smoke_is_present_and_transaction_safe() -> None:
     smoke_sql = (
         REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
     ).read_text(encoding="utf-8")
@@ -151,15 +151,41 @@ def test_migration_smoke_is_present_and_read_only() -> None:
         "scope_versioning_gate",
         "scope_boundary_gate",
         "regulatory_bank_metrics_v1",
+        "regulators",
+        "sources",
+        "source_definition_versions",
+        "source_releases",
+        "source_artifacts",
+        "evidence_columns_gate",
+        "evidence_constraints_gate",
+        "evidence_relationship_gate",
+        "evidence_access_state_gate",
+        "legacy_table_gate",
     )
     for required_contract in required_catalog_contracts:
         assert required_contract in smoke_sql
 
-    write_statement = re.compile(
-        r"^\s*(?:insert|update|delete|create|alter|drop|truncate|grant|revoke)\b",
+    begin_statements = tuple(
+        re.finditer(r"^\s*begin;\s*$", smoke_sql, flags=re.IGNORECASE | re.MULTILINE)
+    )
+    rollback_statements = tuple(
+        re.finditer(r"^\s*rollback;\s*$", smoke_sql, flags=re.IGNORECASE | re.MULTILINE)
+    )
+    assert len(begin_statements) == 1
+    assert len(rollback_statements) == 1
+
+    forbidden_statement = re.compile(
+        r"^\s*(?:create|alter|drop|truncate|grant|revoke|update|delete|commit)\b",
         flags=re.IGNORECASE | re.MULTILINE,
     )
-    assert write_statement.search(smoke_sql) is None
+    assert forbidden_statement.search(smoke_sql) is None
+
+    insert_statements = tuple(
+        re.finditer(r"^\s*insert\b", smoke_sql, flags=re.IGNORECASE | re.MULTILINE)
+    )
+    assert insert_statements
+    assert begin_statements[0].start() < insert_statements[0].start()
+    assert insert_statements[-1].end() < rollback_statements[0].start()
 
 
 def test_production_migration_deploy_has_manual_main_only_serialized_contract() -> None:
