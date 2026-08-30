@@ -142,9 +142,19 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert "20260828164124 / evidence_catalog_schema" in current_state
-    assert "PR12 feat/artifact-storage-contract` — NEXT." in current_state
     assert (
-        "Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; "
-        "PR12 NEXT;\n  later layers pending."
+        "PR12 feat/artifact-storage-contract` — IMPLEMENTED / PRODUCTION STORAGE "
+        "PROVISIONING PENDING."
         in current_state
     )
+    assert (
+        "Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; "
+        "PR12\n  IMPLEMENTED / PRODUCTION STORAGE PROVISIONING PENDING; PR13 BLOCKED; later "
+        "layers pending."
+        in current_state
+    )
+    assert "The PR12 ArtifactStore implementation and declarative bucket contract exist" in (
+        current_state
+    )
+    assert "production `regulatory-artifacts` bucket has not yet been provisioned" in current_state
+    assert "PR13 feat/ingestion-run-lifecycle` — BLOCKED" in current_state

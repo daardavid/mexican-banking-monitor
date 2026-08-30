@@ -12,3 +12,6 @@ major_version = 15
 [db.seed]
 enabled = false
 sql_paths = []
+
+[storage.buckets.regulatory-artifacts]
+public = false
