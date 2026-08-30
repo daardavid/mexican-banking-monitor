@@ -13,8 +13,8 @@ not a changelog and does not make the roadmap executable.
 - Stack: CPython 3.12.14, `uv` 0.12.6, PostgreSQL/Supabase, Supabase CLI migrations, GitHub
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
 - General state: bootstrap/MVP foundation and PR1–PR11 are complete; PR10 and PR11 are merged,
-  deployed, and verified. PR12 is implemented in its feature branch, but production artifact
-  Storage provisioning and verification remain pending before PR12 is operationally complete.
+  deployed, and verified. PR12 is implemented in the repository, but production artifact Storage
+  provisioning and verification remain pending before PR12 is operationally complete.
 
 ## Implemented now
 

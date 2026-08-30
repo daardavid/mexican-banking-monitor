@@ -440,12 +440,15 @@ def test_artifact_storage_provisioning_pins_tools_and_has_narrow_commands() -> N
     assert named_steps["Synchronize declared Storage buckets"]["run"] == (
         "supabase seed buckets --linked"
     )
-    assert named_steps["Verify artifact bucket is reachable"]["run"] == (
-        "supabase storage ls ss:///regulatory-artifacts --linked --experimental"
-    )
+    assert [step["run"] for step in steps if "run" in step] == [
+        'supabase link --project-ref "$SUPABASE_PROJECT_ID"',
+        "supabase seed buckets --linked",
+    ]
 
     serialized = workflow_text.lower()
     for forbidden_contract in (
+        "--experimental",
+        "supabase storage ",
         "supabase storage cp",
         "supabase storage rm",
         "supabase db push",

@@ -48,6 +48,3 @@ jobs:
 
       - name: Synchronize declared Storage buckets
         run: supabase seed buckets --linked
-
-      - name: Verify artifact bucket is reachable
-        run: supabase storage ls ss:///regulatory-artifacts --linked --experimental
