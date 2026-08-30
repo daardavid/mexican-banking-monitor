@@ -1,5 +1,6 @@
 import re
 import shlex
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -9,6 +10,7 @@ SUPABASE_CLI_VERSION = "2.115.0"
 SUPABASE_SETUP_ACTION = (
     "supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf"
 )
+CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 
 
 def test_environment_example_uses_modern_supabase_keys() -> None:
@@ -359,3 +361,107 @@ def test_production_migration_deploy_never_bypasses_or_repairs_history() -> None
         "printenv",
     ):
         assert forbidden_contract not in serialized
+
+
+def test_artifact_storage_bucket_is_private_and_unrestricted() -> None:
+    config = tomllib.loads(
+        (REPOSITORY_ROOT / "supabase" / "config.toml").read_text(encoding="utf-8")
+    )
+
+    bucket = config["storage"]["buckets"]["regulatory-artifacts"]
+    assert bucket == {"public": False}
+    for premature_restriction in (
+        "file_size_limit",
+        "allowed_mime_types",
+        "objects_path",
+    ):
+        assert premature_restriction not in bucket
+
+
+def test_artifact_storage_provisioning_is_manual_main_only_and_serialized() -> None:
+    storage_workflow = yaml.safe_load(
+        (
+            REPOSITORY_ROOT
+            / ".github"
+            / "workflows"
+            / "provision-artifact-storage.yml"
+        ).read_text(encoding="utf-8")
+    )
+    database_workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    trigger = storage_workflow.get("on", storage_workflow.get(True))
+
+    assert trigger == {"workflow_dispatch": None}
+    assert storage_workflow["permissions"] == {"contents": "read"}
+    assert storage_workflow["concurrency"] == database_workflow["concurrency"] == {
+        "group": "production-database-migrations",
+        "cancel-in-progress": False,
+    }
+
+    guard = storage_workflow["jobs"]["main-guard"]
+    guard_command = guard["steps"][0]["run"]
+    assert '"$GITHUB_REF" != "refs/heads/main"' in guard_command
+    assert "exit 1" in guard_command
+
+    provision = storage_workflow["jobs"]["provision"]
+    assert provision["needs"] == "main-guard"
+    assert provision["environment"] == "production"
+    assert provision["env"] == {
+        "NO_COLOR": "1",
+        "SUPABASE_ACCESS_TOKEN": "${{ secrets.SUPABASE_ACCESS_TOKEN }}",
+        "SUPABASE_PROJECT_ID": "${{ secrets.SUPABASE_PROJECT_ID }}",
+    }
+
+
+def test_artifact_storage_provisioning_pins_tools_and_has_narrow_commands() -> None:
+    workflow_path = (
+        REPOSITORY_ROOT
+        / ".github"
+        / "workflows"
+        / "provision-artifact-storage.yml"
+    )
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    steps = workflow["jobs"]["provision"]["steps"]
+    named_steps = {step["name"]: step for step in steps if "name" in step}
+
+    assert steps[0]["uses"] == CHECKOUT_ACTION
+    assert steps[0]["with"] == {"persist-credentials": False}
+    assert named_steps["Install Supabase CLI"]["uses"] == SUPABASE_SETUP_ACTION
+    assert named_steps["Install Supabase CLI"]["with"] == {
+        "version": SUPABASE_CLI_VERSION
+    }
+    assert named_steps["Link production project"]["run"] == (
+        'supabase link --project-ref "$SUPABASE_PROJECT_ID"'
+    )
+    assert named_steps["Synchronize declared Storage buckets"]["run"] == (
+        "supabase seed buckets --linked"
+    )
+    assert named_steps["Verify artifact bucket is reachable"]["run"] == (
+        "supabase storage ls ss:///regulatory-artifacts --linked --experimental"
+    )
+
+    serialized = workflow_text.lower()
+    for forbidden_contract in (
+        "supabase storage cp",
+        "supabase storage rm",
+        "supabase db push",
+        "migration repair",
+        "db reset",
+        "mbm_supabase_secret_key",
+        "printenv",
+        "set -x",
+    ):
+        assert forbidden_contract not in serialized
+
+
+def test_database_deployment_does_not_provision_storage() -> None:
+    database_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "deploy-database.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "supabase seed buckets" not in database_workflow
+    assert "supabase storage" not in database_workflow

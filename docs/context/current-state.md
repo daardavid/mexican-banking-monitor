@@ -13,7 +13,8 @@ not a changelog and does not make the roadmap executable.
 - Stack: CPython 3.12.14, `uv` 0.12.6, PostgreSQL/Supabase, Supabase CLI migrations, GitHub
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
 - General state: bootstrap/MVP foundation and PR1–PR11 are complete; PR10 and PR11 are merged,
-  deployed, and verified, and PR12 is next.
+  deployed, and verified. PR12 is implemented in its feature branch, but production artifact
+  Storage provisioning and verification remain pending before PR12 is operationally complete.
 
 ## Implemented now
 
@@ -26,6 +27,13 @@ not a changelog and does not make the roadmap executable.
   client-side prepared statements for transaction-pooler compatibility.
 - Exact domain models/formulas, YTD conversion, cohort helpers, and HTTP artifact validation/hash
   primitives with tests.
+- A synchronous, immutable, content-addressed ArtifactStore contract with equivalent local and
+  Supabase backends, full SHA-256/byte-length verification, create-only/no-overwrite behavior,
+  safe concurrent-writer handling, and bounded ambiguous-upload recovery. Supabase access uses
+  direct `httpx` rather than an SDK, and MIME remains catalog metadata rather than content identity.
+- Declarative configuration for the private `regulatory-artifacts` bucket and a dedicated manual,
+  main-only production provisioning workflow. The workflow shares the production database
+  deployment concurrency lock but does not run database migrations or upload artifacts.
 - Version-controlled YAML editorial definitions for sources, institutions/cohorts, controlled
   reporting scopes, canonical/source concepts, mappings, and metric metadata, with strict Pydantic
   contracts, duplicate-safe YAML loading, and whole-bundle cross-validation.
@@ -57,7 +65,8 @@ not a changelog and does not make the roadmap executable.
 ## Architecture status
 
 `Regulatory Data Core v1: APPROVED / IMPLEMENTATION STARTED — PR10 AND PR11 DEPLOYED /
-VERIFIED; PR12 NEXT; LATER LAYERS PENDING`
+VERIFIED; PR12 IMPLEMENTED / PRODUCTION STORAGE PROVISIONING PENDING; PR13 BLOCKED; LATER LAYERS
+PENDING`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -94,8 +103,10 @@ and Git/YAML editorial authority with Python as executable authority.
 - Production contains exactly five PR11 evidence catalog tables: `evidence.regulators`,
   `evidence.sources`, `evidence.source_definition_versions`, `evidence.source_releases`, and
   `evidence.source_artifacts`; all five tables are empty.
-- No PR12 ArtifactStore implementation or Storage bucket exists, no PR13 ingestion lifecycle
-  exists, and `public.regulatory_bank_metrics_v1` remains absent.
+- The PR12 ArtifactStore implementation and declarative bucket contract exist in the repository,
+  but the production `regulatory-artifacts` bucket has not yet been provisioned or verified. No
+  production artifacts exist, no PR13 ingestion lifecycle exists, and
+  `public.regulatory_bank_metrics_v1` remains absent.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -124,17 +135,19 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR11 feat/evidence-catalog-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR12 feat/artifact-storage-contract` — NEXT.
-- Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 NEXT;
-  later layers pending.
+- `PR12 feat/artifact-storage-contract` — IMPLEMENTED / PRODUCTION STORAGE PROVISIONING PENDING.
+- `PR13 feat/ingestion-run-lifecycle` — BLOCKED until PR12 production Storage provisioning and
+  verification are complete.
+- Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12
+  IMPLEMENTED / PRODUCTION STORAGE PROVISIONING PENDING; PR13 BLOCKED; later layers pending.
 
 ## Known pending gates
 
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Supabase Storage suitability/retention must be confirmed before artifact backfill.
-- PR12 is no longer blocked by PR11 deployment; no ArtifactStore, Storage bucket, or PR13
-  ingestion-run lifecycle is implemented.
+- PR12 production Storage provisioning and verification are pending. PR13 remains blocked until
+  that operational checkpoint is complete; no ingestion-run lifecycle is implemented.
 
 ## How to update this file
 
