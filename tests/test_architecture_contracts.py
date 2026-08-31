@@ -141,20 +141,57 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "is COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "20260828164124 / evidence_catalog_schema" in current_state
     assert (
-        "PR12 feat/artifact-storage-contract` — IMPLEMENTED / PRODUCTION STORAGE "
-        "PROVISIONING PENDING."
+        "Production migration history is exactly:\n"
+        "  - `202608250001 / initial_schema`\n"
+        "  - `20260827223312 / data_core_schema_primitives`\n"
+        "  - `20260828164124 / evidence_catalog_schema`"
         in current_state
     )
     assert (
-        "Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; "
-        "PR12\n  IMPLEMENTED / PRODUCTION STORAGE PROVISIONING PENDING; PR13 BLOCKED; later "
-        "layers pending."
+        "PR12 feat/artifact-storage-contract` — MERGED / COMPLETE; production Storage is "
+        "PROVISIONED /\n  VERIFIED."
         in current_state
     )
-    assert "The PR12 ArtifactStore implementation and declarative bucket contract exist" in (
-        current_state
+    assert (
+        "PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13 NEXT;"
+        in current_state
     )
-    assert "production `regulatory-artifacts` bucket has not yet been provisioned" in current_state
-    assert "PR13 feat/ingestion-run-lifecycle` — BLOCKED" in current_state
+    assert (
+        "Production has exactly one private `regulatory-artifacts` bucket, it\n  contains zero "
+        "objects"
+        in current_state
+    )
+    assert (
+        "no applicable public, `anon`, or `authenticated` Storage policy\n  exposes it"
+        in current_state
+    )
+    assert "No MIME-type restriction is configured." in current_state
+    assert (
+        "The repository intentionally has no explicit per-bucket file-size override."
+        in current_state
+    )
+    assert (
+        "effective/default `file_size_limit` of 52,428,800 bytes (50 MiB)"
+        in current_state
+    )
+    assert (
+        "current platform/default/effective Storage capacity, not a repository-selected "
+        "per-bucket\n  restriction"
+        in current_state
+    )
+    assert "No repair or second provisioning run was performed." in current_state
+    assert (
+        "PR13 feat/ingestion-run-lifecycle` — NEXT."
+        in current_state
+    )
+    assert (
+        "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
+        "artifact sizes"
+        in current_state
+    )
+    assert (
+        "separately reviewed Storage capacity/transport change is required. This gate does "
+        "not block\n  PR13."
+        in current_state
+    )
