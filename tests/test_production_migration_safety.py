@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -85,6 +86,52 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
     assert hashlib.sha256(pr11_content).hexdigest() == PR11_MIGRATION_SHA256
+
+
+def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(smoke_text.lower().split())
+
+    assert r"\quit 1" not in smoke_text
+    conditional_blocks = re.findall(
+        r"(?ms)^\\if\s+:[^\r\n]+\r?\n(.*?)^\\endif\s*$", smoke_text
+    )
+    assert len(conditional_blocks) == len(
+        re.findall(r"(?m)^\\if\s+:[^\r\n]+$", smoke_text)
+    )
+    for block in conditional_blocks:
+        assert r"\else" in block
+        failure_branch = block.split(r"\else", 1)[1].lower()
+        assert "do $$" in failure_branch
+        assert "raise exception" in failure_branch
+
+    assert normalized.count(
+        "where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')"
+    ) >= 1
+    assert (
+        "where namespace.nspname in "
+        "('reported', 'semantic', 'metrics', 'audit', 'serving')"
+    ) not in normalized
+    assert (
+        "where later_namespace.nspname in "
+        "('reported', 'semantic', 'metrics', 'audit', 'serving')"
+    ) not in normalized
+
+    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    assert "count(*) = 3" in audit_boundary
+    for expected_relation in (
+        "('ingestion_runs', 'r')",
+        "('ingestion_run_artifacts', 'r')",
+        "('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 's')",
+    ):
+        assert expected_relation in audit_boundary
+    assert "bool_and((relation.relname, relation.relkind::text) in" in audit_boundary
+    assert "where namespace.nspname = 'audit'" in audit_boundary
+    assert "do $ declare" not in normalized
 
 
 def test_pr10_migration_is_additive_private_and_unseeded() -> None:

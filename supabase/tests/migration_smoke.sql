@@ -17,7 +17,10 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'sources', 'r'),
         ('evidence', 'source_definition_versions', 'r'),
         ('evidence', 'source_releases', 'r'),
-        ('evidence', 'source_artifacts', 'r')
+        ('evidence', 'source_artifacts', 'r'),
+        ('audit', 'ingestion_runs', 'r'),
+        ('audit', 'ingestion_run_artifacts', 'r'),
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
 )
 select
     format('%I.%I', expected.schema_name, expected.relation_name) as relation_name,
@@ -46,7 +49,10 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'sources', 'r'),
         ('evidence', 'source_definition_versions', 'r'),
         ('evidence', 'source_releases', 'r'),
-        ('evidence', 'source_artifacts', 'r')
+        ('evidence', 'source_artifacts', 'r'),
+        ('audit', 'ingestion_runs', 'r'),
+        ('audit', 'ingestion_run_artifacts', 'r'),
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
 ), relation_gate as (
     select bool_and(actual.oid is not null and actual.relkind = expected.expected_kind::"char")
         as valid
@@ -271,7 +277,21 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             from pg_catalog.pg_class relation
             join pg_catalog.pg_namespace namespace
               on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('reported', 'semantic', 'metrics', 'audit', 'serving')
+            where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((relation.relname, relation.relkind::text) in (
+                    ('ingestion_runs', 'r'),
+                    ('ingestion_run_artifacts', 'r'),
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'audit'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and not exists (
@@ -333,7 +353,11 @@ left join rls_gate on true
 \echo 'Migration schema smoke passed.'
 \else
 \echo 'Migration schema smoke failed.'
-\quit 1
+do $$
+begin
+    raise exception 'Migration schema smoke gate failed.';
+end
+$$;
 \endif
 
 with evidence_columns_gate as (
@@ -644,8 +668,22 @@ with evidence_columns_gate as (
             from pg_catalog.pg_class later_relation
             join pg_catalog.pg_namespace later_namespace
               on later_namespace.oid = later_relation.relnamespace
-            where later_namespace.nspname in ('reported', 'semantic', 'metrics', 'audit', 'serving')
+            where later_namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
               and later_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((audit_relation.relname, audit_relation.relkind::text) in (
+                    ('ingestion_runs', 'r'),
+                    ('ingestion_run_artifacts', 'r'),
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class audit_relation
+            join pg_catalog.pg_namespace audit_namespace
+              on audit_namespace.oid = audit_relation.relnamespace
+            where audit_namespace.nspname = 'audit'
+              and audit_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
     from pg_catalog.pg_class relation
@@ -695,7 +733,11 @@ cross join legacy_table_gate
 \echo 'PR11 evidence catalog schema contract passed.'
 \else
 \echo 'PR11 evidence catalog schema contract failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 evidence catalog schema gate failed.';
+end
+$$;
 \endif
 
 insert into evidence.regulators (regulator_id, regulator_code, name, country)
@@ -1277,8 +1319,12 @@ with audit_columns_gate as (
         ) as valid
 ), audit_boundary_gate as (
     select
-        count(*) = 2
-        and bool_and(relation.relname in ('ingestion_runs', 'ingestion_run_artifacts'))
+        count(*) = 3
+        and bool_and((relation.relname, relation.relkind::text) in (
+            ('ingestion_runs', 'r'),
+            ('ingestion_run_artifacts', 'r'),
+            ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+        ))
         and pg_catalog.to_regclass('audit.quality_issues') is null
         and pg_catalog.to_regclass('audit.review_decisions') is null
         and pg_catalog.to_regclass('registry.institutions') is null
@@ -1287,7 +1333,6 @@ with audit_columns_gate as (
     join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'audit'
       and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
-      and relation.relname <> 'ingestion_run_artifacts_ingestion_run_artifact_id_seq'
 ), legacy_table_gate as (
     select count(*) = 10 as valid
     from (values
@@ -1325,7 +1370,11 @@ cross join legacy_table_gate
 \echo 'PR13 ingestion lifecycle schema contract passed.'
 \else
 \echo 'PR13 ingestion lifecycle schema contract failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 ingestion lifecycle schema gate failed.';
+end
+$$;
 \endif
 
 insert into evidence.regulators (regulator_id, regulator_code, name, country)
@@ -1562,7 +1611,11 @@ where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
 \if :pr13_pending_valid
 \else
 \echo 'Canonical pending run state failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 canonical pending run gate failed.';
+end
+$$;
 \endif
 
 with changed as (update audit.ingestion_runs
@@ -1618,7 +1671,11 @@ where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
 \if :pr13_running_summary_zero
 \else
 \echo 'Running counters were not zero.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 running counter ownership gate failed.';
+end
+$$;
 \endif
 
 with changed as (update audit.ingestion_runs
@@ -1646,7 +1703,11 @@ where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
 \if :pr13_success_aggregated
 \else
 \echo 'Succeeded run did not aggregate recovered attempt outcomes.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 succeeded-run aggregation gate failed.';
+end
+$$;
 \endif
 
 insert into audit.ingestion_runs (
@@ -1789,7 +1850,11 @@ select
 \if :pr13_terminal_outcomes_valid
 \else
 \echo 'PR13 terminal outcome semantics failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 terminal outcome gate failed.';
+end
+$$;
 \endif
 
 do $$
@@ -2141,7 +2206,11 @@ where restart_of_ingestion_run_id = '00000000-0000-4000-8000-000000000613'
 \if :pr13_multiple_restart_children
 \else
 \echo 'Multiple restart children were not preserved.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 restart lineage gate failed.';
+end
+$$;
 \endif
 
 set local role service_role;
@@ -2158,7 +2227,7 @@ values (
 returning ingestion_run_id as service_run_id
 \gset
 
-do $
+do $$
 declare
     target_run_id uuid;
     rejected boolean;
@@ -2185,7 +2254,7 @@ begin
     if not rejected then raise exception 'service role directly updated counters';
     end if;
 end
-$;
+$$;
 
 with changed as (update audit.ingestion_runs
 set status = 'running'
@@ -2227,7 +2296,11 @@ where ingestion_run_id = :'service_run_id'::uuid
 \if :pr13_service_role_contract
 \else
 \echo 'Service-role lifecycle contract failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 service-role lifecycle gate failed.';
+end
+$$;
 \endif
 
 select
@@ -2244,13 +2317,27 @@ select
     as pr13_behavior_passed
 \gset
 
+\if :pr13_behavior_passed
+\else
+\echo 'PR13 aggregate behavioral smoke failed.'
+do $$
+begin
+    raise exception 'PR13 aggregate behavioral gate failed.';
+end
+$$;
+\endif
+
 rollback;
 
 \if :pr11_behavior_passed
 \echo 'PR11 evidence catalog behavioral smoke passed.'
 \else
 \echo 'PR11 evidence catalog behavioral smoke failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 evidence catalog behavioral gate failed.';
+end
+$$;
 \endif
 
 select
@@ -2265,7 +2352,11 @@ select
 \echo 'PR11 smoke fixtures rolled back cleanly.'
 \else
 \echo 'PR11 smoke fixtures persisted unexpectedly.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 rollback cleanliness gate failed.';
+end
+$$;
 \endif
 
 
@@ -2279,5 +2370,11 @@ select
 \echo 'PR13 smoke fixtures rolled back cleanly.'
 \else
 \echo 'PR13 smoke fixtures persisted unexpectedly.'
-\quit 1
+do $$
+begin
+    raise exception 'PR13 rollback cleanliness gate failed.';
+end
+$$;
 \endif
+
+\echo 'Migration smoke completed successfully.'

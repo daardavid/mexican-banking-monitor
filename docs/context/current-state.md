@@ -14,7 +14,7 @@ not a changelog and does not make the roadmap executable.
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
 - General state: bootstrap/MVP foundation and PR1–PR12 are complete. PR10 and PR11 are merged,
   deployed, and verified. PR12 is merged and complete, and its production artifact Storage is
-  provisioned and verified. PR13 is implemented in its feature branch; production deployment is
+  provisioned and verified. PR13 is implemented in the repository; production deployment remains
   pending.
 
 ## Implemented now
