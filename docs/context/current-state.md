@@ -14,7 +14,8 @@ not a changelog and does not make the roadmap executable.
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
 - General state: bootstrap/MVP foundation and PR1–PR12 are complete. PR10 and PR11 are merged,
   deployed, and verified. PR12 is merged and complete, and its production artifact Storage is
-  provisioned and verified. PR13 is next.
+  provisioned and verified. PR13 is implemented in the repository; production deployment remains
+  pending.
 
 ## Implemented now
 
@@ -42,6 +43,10 @@ not a changelog and does not make the roadmap executable.
 - The deployed PR11 evidence catalog implements stable regulator/source identity, immutable
   source-definition versions, logical releases, exact artifacts, and append-only runtime
   privileges. All five relations are unseeded by design.
+- The PR13 repository migration implements private v1 ingestion runs and append-only artifact
+  observation attempts in `audit`, with a PostgreSQL-owned lifecycle, terminal counters,
+  same-source artifact lineage, restart lineage, and narrow service-role writes. It is not yet
+  deployed to production.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -67,8 +72,8 @@ not a changelog and does not make the roadmap executable.
 ## Architecture status
 
 `Regulatory Data Core v1: APPROVED / IMPLEMENTATION STARTED — PR10 AND PR11 DEPLOYED /
-VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13 NEXT;
-LATER LAYERS PENDING`
+VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13
+IMPLEMENTED / PRODUCTION DEPLOYMENT PENDING; PR14 BLOCKED; LATER LAYERS PENDING`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -79,9 +84,10 @@ and Git/YAML editorial authority with Python as executable authority.
 - Schemas `core`, `ops`, and `analytics` are legacy and frozen for the v1 transition.
 - `public.bank_metrics` is an existing legacy derived surface.
 - The legacy initial migration remains immutable.
-- The repository migrations define the seven v1 responsibility schemas, the three deployed PR10
-  registry primitives, and the five deployed PR11 evidence catalog relations. No v1 writer or v1
-  public contract exists yet, and there is no dual-write.
+- The repository contains exactly four migrations. They define the seven v1 responsibility
+  schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
+  relations, and the not-yet-deployed PR13 audit ingestion lifecycle. No v1 public contract exists,
+  and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
 ## Operational state
@@ -95,6 +101,8 @@ and Git/YAML editorial authority with Python as executable authority.
   - `202608250001 / initial_schema`
   - `20260827223312 / data_core_schema_primitives`
   - `20260828164124 / evidence_catalog_schema`
+- The repository additionally contains
+  `20260830234552 / ingestion_run_lifecycle`; production does not yet contain it.
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
@@ -113,8 +121,8 @@ and Git/YAML editorial authority with Python as executable authority.
   an effective/default `file_size_limit` of 52,428,800 bytes (50 MiB); this is accepted as the
   current platform/default/effective Storage capacity, not a repository-selected per-bucket
   restriction. No repair or second provisioning run was performed.
-- PR12 made no SQL migration. No PR13 ingestion lifecycle exists, and
-  `public.regulatory_bank_metrics_v1` remains absent.
+- PR12 made no SQL migration. PR13 is implemented in the repository but its two audit relations
+  are not yet in production, and `public.regulatory_bank_metrics_v1` remains absent.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -145,12 +153,17 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR12 feat/artifact-storage-contract` — MERGED / COMPLETE; production Storage is PROVISIONED /
   VERIFIED.
-- `PR13 feat/ingestion-run-lifecycle` — NEXT.
+- `PR13 feat/ingestion-run-lifecycle` — IMPLEMENTED / PRODUCTION DEPLOYMENT PENDING.
+- `PR14 feat/institution-identity-schema` — BLOCKED until PR13 is merged, deployed, verified, and
+  recorded in the production-state documentation checkpoint.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
-  COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 NEXT; later layers pending.
+  COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 IMPLEMENTED / PRODUCTION
+  DEPLOYMENT PENDING; PR14 BLOCKED; later layers pending.
 
 ## Known pending gates
 
+- PR14 cannot begin until PR13 is merged, deployed to production, verified read-only, and followed
+  by a production-state documentation checkpoint on `main`.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,
