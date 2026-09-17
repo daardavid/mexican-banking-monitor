@@ -10,7 +10,11 @@ import yaml
 from typer.testing import CliRunner
 
 from mx_bank_monitor import cli
-from mx_bank_monitor.config import ConfigValidationError, load_config_bundle
+from mx_bank_monitor.config import (
+    ConfigValidationError,
+    load_config_bundle,
+    normalize_institution_alias,
+)
 
 runner = CliRunner()
 
@@ -189,6 +193,7 @@ def _institution(
 ) -> dict[str, Any]:
     return {
         "code": code,
+        "definition_version": 1,
         "canonical_label": label,
         "country": "MX",
         "lifecycle": "draft",
@@ -367,6 +372,7 @@ def test_invalid_institution_validity_and_unknown_cohort_are_rejected(tmp_path: 
     documents["institutions.yml"]["institutions"] = [
         {
             "code": "test_bank",
+            "definition_version": 1,
             "canonical_label": "Test Bank",
             "country": "MX",
             "lifecycle": "draft",
@@ -479,6 +485,89 @@ def test_inclusive_validity_boundaries_are_deterministic(tmp_path: Path) -> None
         ConfigValidationError, match="duplicate overlapping regulatory registration"
     ):
         load_config_bundle(config_dir)
+
+
+def test_normalize_institution_alias_matches_casefold_contract() -> None:
+    raw_alias = "Banco Uno"
+    assert normalize_institution_alias("  Banco   Uno  ") == "banco uno"
+    assert normalize_institution_alias(raw_alias) == " ".join(raw_alias.split()).casefold()
+    assert normalize_institution_alias("BANCO\tUNO") == "banco uno"
+
+
+def test_institution_definition_requires_definition_version(tmp_path: Path) -> None:
+    documents = _valid_documents()
+    institution = _institution("bank_one", "Bank One")
+    del institution["definition_version"]
+    documents["institutions.yml"]["institutions"] = [institution]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(ConfigValidationError, match="definition_version"):
+        load_config_bundle(config_dir)
+
+
+def test_overlapping_same_cohort_membership_is_rejected(tmp_path: Path) -> None:
+    documents = _valid_documents()
+    institution = _institution("bank_one", "Bank One")
+    institution["cohorts"] = [
+        {
+            "cohort_code": "traditional_bank",
+            "rationale": "First membership.",
+            "valid_from": date(2024, 1, 1),
+            "valid_to": None,
+        },
+        {
+            "cohort_code": "traditional_bank",
+            "rationale": "Overlapping membership.",
+            "valid_from": date(2025, 1, 1),
+            "valid_to": None,
+        },
+    ]
+    documents["institutions.yml"]["institutions"] = [institution]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(
+        ConfigValidationError, match="overlapping cohort membership traditional_bank"
+    ):
+        load_config_bundle(config_dir)
+
+
+def test_different_cohort_memberships_may_overlap(tmp_path: Path) -> None:
+    documents = _valid_documents()
+    documents["institutions.yml"]["cohorts"].append(
+        {
+            "code": "digital_bank",
+            "label": "Digital bank",
+            "definition": "Second test cohort.",
+            "lifecycle": "active",
+        }
+    )
+    institution = _institution("bank_one", "Bank One")
+    institution["cohorts"] = [
+        {
+            "cohort_code": "traditional_bank",
+            "rationale": "Traditional membership.",
+            "valid_from": date(2024, 1, 1),
+            "valid_to": None,
+        },
+        {
+            "cohort_code": "digital_bank",
+            "rationale": "Digital membership.",
+            "valid_from": date(2024, 1, 1),
+            "valid_to": None,
+        },
+    ]
+    documents["institutions.yml"]["institutions"] = [institution]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    bundle = load_config_bundle(config_dir)
+
+    assert [item.cohort_code for item in bundle.institutions.institutions[0].cohorts] == [
+        "traditional_bank",
+        "digital_bank",
+    ]
 
 
 @pytest.mark.parametrize(

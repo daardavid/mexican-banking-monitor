@@ -27,6 +27,10 @@ PR11_MIGRATION_SHA256 = (
     "7ff9299eeba5d7571a957625da7e9216db13b43d02b10566aaf5975b879fe568"
 )
 PR13_MIGRATION_NAME = "20260830234552_ingestion_run_lifecycle.sql"
+PR13_MIGRATION_SHA256 = (
+    "ca882b04bb36a646afd5aefae9a76ada34e657070ce355e81425e84b28eaac2b"
+)
+PR14_MIGRATION_NAME = "20260916202900_institution_identity_schema.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -76,16 +80,22 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr10_content = migrations[1].path.read_bytes().replace(b"\r\n", b"\n")
     pr11_content = migrations[2].path.read_bytes().replace(b"\r\n", b"\n")
 
+    pr13_content = migrations[3].path.read_bytes().replace(b"\r\n", b"\n")
+    pr14_content = migrations[4].path.read_bytes().replace(b"\r\n", b"\n")
+
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
         PR10_MIGRATION_NAME,
         PR11_MIGRATION_NAME,
         PR13_MIGRATION_NAME,
+        PR14_MIGRATION_NAME,
     ]
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
     assert hashlib.sha256(pr11_content).hexdigest() == PR11_MIGRATION_SHA256
+    assert hashlib.sha256(pr13_content).hexdigest() == PR13_MIGRATION_SHA256
+    assert "create table registry.institutions" in pr14_content.decode("utf-8")
 
 
 def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> None:
@@ -476,6 +486,154 @@ def test_pr13_indexes_and_runtime_grants_are_narrow() -> None:
     assert "grant usage on sequence" in normalized
     assert "grant update on audit.ingestion_runs" not in normalized
     assert "grant update on audit.ingestion_run_artifacts" not in normalized
+    assert "grant delete" not in normalized
+    assert "grant truncate" not in normalized
+    assert "grant references" not in normalized
+    assert "grant trigger" not in normalized
+
+
+def test_pr14_migration_is_additive_private_unseeded_and_in_scope() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR14_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    expected_tables = (
+        "institutions",
+        "institution_definition_versions",
+        "regulatory_registrations",
+        "institution_aliases",
+        "institution_cohorts",
+        "regulatory_concepts",
+        "regulatory_concept_scopes",
+    )
+
+    assert normalized.count("create table registry.") == len(expected_tables)
+    for table_name in expected_tables:
+        assert f"create table registry.{table_name} (" in normalized
+        assert f"alter table registry.{table_name} enable row level security;" in normalized
+
+    assert "create extension if not exists btree_gist with schema extensions;" in (
+        normalized
+    )
+    assert normalized.count("create extension") == 1
+    assert "with schema public" not in normalized
+    assert "set local search_path" in normalized
+    assert "set search_path =" not in normalized.replace("set local search_path", "")
+
+    assert forbidden_operations(migration_text) == []
+    assert "insert into" not in normalized
+    assert "create policy" not in normalized
+    assert "security definer" not in normalized
+    assert "create role " not in normalized
+    assert "alter role " not in normalized
+    assert "cascade" not in normalized
+    assert "on delete" not in normalized
+    assert "on update" not in normalized
+    assert "create function" not in normalized
+    assert "grant insert" not in normalized
+    assert "grant update" not in normalized
+    assert "grant delete" not in normalized
+    assert "grant select" in normalized
+
+    for protected_schema in (
+        "core.",
+        "ops.",
+        "analytics.",
+        "reported.",
+        "semantic.",
+        "metrics.",
+        "serving.",
+        "public.regulatory_bank_metrics_v1",
+    ):
+        assert protected_schema not in normalized
+
+
+def test_pr14_identity_versions_and_projection_invariants() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR14_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    identity_definition = normalized.split(
+        "create table registry.institutions (", 1
+    )[1].split(");", 1)[0]
+    version_definition = normalized.split(
+        "create table registry.institution_definition_versions (", 1
+    )[1].split(");", 1)[0]
+    registration_definition = normalized.split(
+        "create table registry.regulatory_registrations (", 1
+    )[1].split(");", 1)[0]
+    alias_definition = normalized.split(
+        "create table registry.institution_aliases (", 1
+    )[1].split(");", 1)[0]
+    concept_definition = normalized.split(
+        "create table registry.regulatory_concepts (", 1
+    )[1].split(");", 1)[0]
+
+    assert "institution_id uuid primary key default gen_random_uuid()" in (
+        identity_definition
+    )
+    assert "institution_code text not null unique" in identity_definition
+    assert "country text not null" in identity_definition
+    for version_only_column in (
+        "canonical_label",
+        "lifecycle",
+        "provenance",
+        "definition_snapshot",
+        "definition_hash",
+        "git_sha",
+    ):
+        assert version_only_column not in identity_definition
+
+    assert "unique (institution_id, definition_version)" in version_definition
+    assert "unique (institution_definition_version_id, institution_id)" in (
+        version_definition
+    )
+    assert "check (jsonb_typeof(definition_snapshot) = 'object')" in version_definition
+
+    assert "daterange(valid_from, valid_to, '[]')" in registration_definition
+    assert "source_id" not in registration_definition
+    assert (
+        "foreign key (institution_definition_version_id, institution_id) "
+        "references registry.institution_definition_versions"
+    ) in registration_definition
+    assert "exclude using gist" in registration_definition
+
+    assert "normalized_alias text not null" in alias_definition
+    assert "generated always as" not in alias_definition.split(
+        "normalized_alias text not null", 1
+    )[1].split("alias_type", 1)[0]
+    assert "lower(" not in alias_definition
+    assert "casefold" not in alias_definition
+    assert "source_id uuid not null" in alias_definition
+
+    assert "unique (source_id, external_code, definition_version)" in (
+        concept_definition
+    )
+    assert "measurement_unit" not in concept_definition
+    assert "data_nature" not in concept_definition
+    assert "frequency" not in concept_definition
+    assert "canonical_concept" not in normalized
+
+
+def test_pr14_lookup_indexes_and_select_only_grants() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR14_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    expected_indexes = (
+        "regulatory_registrations_lookup_idx",
+        "institution_aliases_lookup_idx",
+        "institution_cohorts_lookup_idx",
+    )
+
+    assert normalized.count("create index ") == len(expected_indexes)
+    for index_name in expected_indexes:
+        assert f"create index {index_name}" in normalized
+
+    assert "grant select" in normalized
+    assert "to service_role;" in normalized
+    assert "grant insert" not in normalized
+    assert "grant update" not in normalized
     assert "grant delete" not in normalized
     assert "grant truncate" not in normalized
     assert "grant references" not in normalized

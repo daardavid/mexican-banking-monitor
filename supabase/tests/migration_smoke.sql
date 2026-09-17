@@ -20,7 +20,14 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'source_artifacts', 'r'),
         ('audit', 'ingestion_runs', 'r'),
         ('audit', 'ingestion_run_artifacts', 'r'),
-        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+        ('registry', 'institutions', 'r'),
+        ('registry', 'institution_definition_versions', 'r'),
+        ('registry', 'regulatory_registrations', 'r'),
+        ('registry', 'institution_aliases', 'r'),
+        ('registry', 'institution_cohorts', 'r'),
+        ('registry', 'regulatory_concepts', 'r'),
+        ('registry', 'regulatory_concept_scopes', 'r')
 )
 select
     format('%I.%I', expected.schema_name, expected.relation_name) as relation_name,
@@ -52,7 +59,14 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'source_artifacts', 'r'),
         ('audit', 'ingestion_runs', 'r'),
         ('audit', 'ingestion_run_artifacts', 'r'),
-        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+        ('registry', 'institutions', 'r'),
+        ('registry', 'institution_definition_versions', 'r'),
+        ('registry', 'regulatory_registrations', 'r'),
+        ('registry', 'institution_aliases', 'r'),
+        ('registry', 'institution_cohorts', 'r'),
+        ('registry', 'regulatory_concepts', 'r'),
+        ('registry', 'regulatory_concept_scopes', 'r')
 ), relation_gate as (
     select bool_and(actual.oid is not null and actual.relkind = expected.expected_kind::"char")
         as valid
@@ -302,7 +316,16 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             where namespace.nspname = 'registry'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
               and relation.relname not in (
-                  'measurement_units', 'reporting_scopes', 'reporting_scope_versions'
+                  'measurement_units',
+                  'reporting_scopes',
+                  'reporting_scope_versions',
+                  'institutions',
+                  'institution_definition_versions',
+                  'regulatory_registrations',
+                  'institution_aliases',
+                  'institution_cohorts',
+                  'regulatory_concepts',
+                  'regulatory_concept_scopes'
               )
         )
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
@@ -1327,7 +1350,7 @@ with audit_columns_gate as (
         ))
         and pg_catalog.to_regclass('audit.quality_issues') is null
         and pg_catalog.to_regclass('audit.review_decisions') is null
-        and pg_catalog.to_regclass('registry.institutions') is null
+        and pg_catalog.to_regclass('registry.institutions') is not null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
     from pg_catalog.pg_class relation
     join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
@@ -2327,6 +2350,1049 @@ end
 $$;
 \endif
 
+\echo PR14 diagnostic uuid defaults
+select
+    actual.table_name,
+    actual.column_name,
+    actual.column_default
+from (values
+    ('institutions', 'institution_id'),
+    ('institution_definition_versions', 'institution_definition_version_id'),
+    ('regulatory_registrations', 'regulatory_registration_id'),
+    ('institution_aliases', 'institution_alias_id'),
+    ('institution_cohorts', 'institution_cohort_id'),
+    ('regulatory_concepts', 'regulatory_concept_id')
+) as expected(table_name, column_name)
+join information_schema.columns actual
+  on actual.table_schema = 'registry'
+ and actual.table_name = expected.table_name
+ and actual.column_name = expected.column_name
+order by actual.table_name, actual.column_name;
+
+with pr14_extension_gate as (
+    select
+        count(*) = 1
+        and bool_and(namespace.nspname = 'extensions') as valid
+    from pg_catalog.pg_extension extension
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = extension.extnamespace
+    where extension.extname = 'btree_gist'
+), pr14_inventory_gate as (
+    select
+        count(*) = 10
+        and bool_and(relation.relname in (
+            'measurement_units',
+            'reporting_scopes',
+            'reporting_scope_versions',
+            'institutions',
+            'institution_definition_versions',
+            'regulatory_registrations',
+            'institution_aliases',
+            'institution_cohorts',
+            'regulatory_concepts',
+            'regulatory_concept_scopes'
+        ))
+        and bool_and(relation.relkind = 'r') as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'registry'
+      and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+), pr14_columns_gate as (
+    select
+        count(*) = 50
+        and (
+            select count(*) = 53
+            from information_schema.columns
+            where table_schema = 'registry'
+              and table_name in (
+                  'institutions',
+                  'institution_definition_versions',
+                  'regulatory_registrations',
+                  'institution_aliases',
+                  'institution_cohorts',
+                  'regulatory_concepts',
+                  'regulatory_concept_scopes'
+              )
+        ) as valid
+    from (values
+        ('institutions', 'institution_id', 'uuid', 'NO'),
+        ('institutions', 'institution_code', 'text', 'NO'),
+        ('institutions', 'country', 'text', 'NO'),
+        ('institution_definition_versions', 'institution_definition_version_id', 'uuid', 'NO'),
+        ('institution_definition_versions', 'institution_id', 'uuid', 'NO'),
+        ('institution_definition_versions', 'definition_version', 'integer', 'NO'),
+        ('institution_definition_versions', 'canonical_label', 'text', 'NO'),
+        ('institution_definition_versions', 'lifecycle', 'text', 'NO'),
+        ('institution_definition_versions', 'provenance', 'text', 'NO'),
+        ('institution_definition_versions', 'definition_snapshot', 'jsonb', 'NO'),
+        ('institution_definition_versions', 'definition_hash', 'text', 'NO'),
+        ('institution_definition_versions', 'git_sha', 'text', 'NO'),
+        ('regulatory_registrations', 'regulatory_registration_id', 'uuid', 'NO'),
+        ('regulatory_registrations', 'institution_id', 'uuid', 'NO'),
+        ('regulatory_registrations', 'institution_definition_version_id', 'uuid', 'NO'),
+        ('regulatory_registrations', 'regulator_id', 'uuid', 'NO'),
+        ('regulatory_registrations', 'registration_type', 'text', 'NO'),
+        ('regulatory_registrations', 'registration_code', 'text', 'NO'),
+        ('regulatory_registrations', 'valid_from', 'date', 'NO'),
+        ('regulatory_registrations', 'valid_to', 'date', 'YES'),
+        ('institution_aliases', 'institution_alias_id', 'uuid', 'NO'),
+        ('institution_aliases', 'institution_id', 'uuid', 'NO'),
+        ('institution_aliases', 'institution_definition_version_id', 'uuid', 'NO'),
+        ('institution_aliases', 'source_id', 'uuid', 'NO'),
+        ('institution_aliases', 'alias_value', 'text', 'NO'),
+        ('institution_aliases', 'normalized_alias', 'text', 'NO'),
+        ('institution_aliases', 'alias_type', 'text', 'NO'),
+        ('institution_aliases', 'valid_from', 'date', 'NO'),
+        ('institution_aliases', 'valid_to', 'date', 'YES'),
+        ('institution_cohorts', 'institution_cohort_id', 'uuid', 'NO'),
+        ('institution_cohorts', 'institution_id', 'uuid', 'NO'),
+        ('institution_cohorts', 'institution_definition_version_id', 'uuid', 'NO'),
+        ('institution_cohorts', 'cohort_code', 'text', 'NO'),
+        ('institution_cohorts', 'valid_from', 'date', 'NO'),
+        ('institution_cohorts', 'valid_to', 'date', 'YES'),
+        ('institution_cohorts', 'rationale', 'text', 'NO'),
+        ('regulatory_concepts', 'regulatory_concept_id', 'uuid', 'NO'),
+        ('regulatory_concepts', 'source_id', 'uuid', 'NO'),
+        ('regulatory_concepts', 'external_code', 'text', 'NO'),
+        ('regulatory_concepts', 'definition_version', 'integer', 'NO'),
+        ('regulatory_concepts', 'label', 'text', 'NO'),
+        ('regulatory_concepts', 'definition', 'text', 'NO'),
+        ('regulatory_concepts', 'lifecycle', 'text', 'NO'),
+        ('regulatory_concepts', 'valid_from', 'date', 'NO'),
+        ('regulatory_concepts', 'valid_to', 'date', 'YES'),
+        ('regulatory_concepts', 'definition_snapshot', 'jsonb', 'NO'),
+        ('regulatory_concepts', 'definition_hash', 'text', 'NO'),
+        ('regulatory_concepts', 'git_sha', 'text', 'NO'),
+        ('regulatory_concept_scopes', 'regulatory_concept_id', 'uuid', 'NO'),
+        ('regulatory_concept_scopes', 'reporting_scope_id', 'uuid', 'NO')
+    ) as expected(table_name, column_name, data_type, is_nullable)
+    join information_schema.columns actual
+      on actual.table_schema = 'registry'
+     and actual.table_name = expected.table_name
+     and actual.column_name = expected.column_name
+     and actual.data_type = expected.data_type
+     and actual.is_nullable = expected.is_nullable
+), pr14_validity_gate as (
+    select
+        count(*) = 3
+        and bool_and(actual.udt_name = 'daterange')
+        and bool_and(actual.is_generated = 'ALWAYS')
+        and bool_and(actual.generation_expression like '%daterange%')
+        and bool_and(actual.generation_expression like '%[]%')
+        as valid
+    from (values
+        ('regulatory_registrations'),
+        ('institution_aliases'),
+        ('institution_cohorts')
+    ) as expected(table_name)
+    join information_schema.columns actual
+      on actual.table_schema = 'registry'
+     and actual.table_name = expected.table_name
+     and actual.column_name = 'validity'
+), pr14_alias_normalization_gate as (
+    select
+        actual.is_generated = 'NEVER'
+        and actual.generation_expression is null as valid
+    from information_schema.columns actual
+    where actual.table_schema = 'registry'
+      and actual.table_name = 'institution_aliases'
+      and actual.column_name = 'normalized_alias'
+), pr14_relationship_gate as (
+    select count(*) = 6 as valid
+    from (values
+        ('institution_definition_versions_identity_key', 'u',
+            'UNIQUE (institution_definition_version_id, institution_id)'),
+        ('regulatory_registrations_definition_institution_fkey', 'f',
+            'FOREIGN KEY (institution_definition_version_id, institution_id) '
+            'REFERENCES registry.institution_definition_versions(institution_definition_version_id, institution_id)'),
+        ('institution_aliases_definition_institution_fkey', 'f',
+            'FOREIGN KEY (institution_definition_version_id, institution_id) '
+            'REFERENCES registry.institution_definition_versions(institution_definition_version_id, institution_id)'),
+        ('institution_cohorts_definition_institution_fkey', 'f',
+            'FOREIGN KEY (institution_definition_version_id, institution_id) '
+            'REFERENCES registry.institution_definition_versions(institution_definition_version_id, institution_id)'),
+        ('regulatory_registrations_regulator_fkey', 'f',
+            'FOREIGN KEY (regulator_id) REFERENCES evidence.regulators(regulator_id)'),
+        ('institution_aliases_source_fkey', 'f',
+            'FOREIGN KEY (source_id) REFERENCES evidence.sources(source_id)')
+    ) as expected(constraint_name, constraint_kind, constraint_definition)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = expected.constraint_kind::"char"
+     and pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
+), pr14_exclusion_gate as (
+    select
+        count(*) = 3
+        and bool_and(actual.contype = 'x') as valid
+    from (values
+        ('regulatory_registrations_validity_excl'),
+        ('institution_aliases_validity_excl'),
+        ('institution_cohorts_validity_excl')
+    ) as expected(constraint_name)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+), pr14_defaults_gate as (
+    select
+        count(*) = 6
+        and bool_and(column_default in (
+            'gen_random_uuid()',
+            'pg_catalog.gen_random_uuid()',
+            'extensions.gen_random_uuid()'
+        )) as valid
+    from (values
+        ('institutions', 'institution_id'),
+        ('institution_definition_versions', 'institution_definition_version_id'),
+        ('regulatory_registrations', 'regulatory_registration_id'),
+        ('institution_aliases', 'institution_alias_id'),
+        ('institution_cohorts', 'institution_cohort_id'),
+        ('regulatory_concepts', 'regulatory_concept_id')
+    ) as expected(table_name, column_name)
+    join information_schema.columns actual
+      on actual.table_schema = 'registry'
+     and actual.table_name = expected.table_name
+     and actual.column_name = expected.column_name
+), pr14_indexes_gate as (
+    select
+        count(*) = 3
+        and bool_and(index_relation.relname in (
+            'regulatory_registrations_lookup_idx',
+            'institution_aliases_lookup_idx',
+            'institution_cohorts_lookup_idx'
+        )) as valid
+    from pg_catalog.pg_index index_definition
+    join pg_catalog.pg_class index_relation
+      on index_relation.oid = index_definition.indexrelid
+    join pg_catalog.pg_class table_relation
+      on table_relation.oid = index_definition.indrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = table_relation.relnamespace
+    where namespace.nspname = 'registry'
+      and table_relation.relname in (
+          'institutions',
+          'institution_definition_versions',
+          'regulatory_registrations',
+          'institution_aliases',
+          'institution_cohorts',
+          'regulatory_concepts',
+          'regulatory_concept_scopes'
+      )
+      and not exists (
+          select 1
+          from pg_catalog.pg_constraint backing_constraint
+          where backing_constraint.conindid = index_definition.indexrelid
+      )
+), pr14_access_state_gate as (
+    select
+        count(*) = 7
+        and bool_and(relation.relrowsecurity)
+        and not exists (
+            select 1
+            from pg_catalog.pg_policies
+            where schemaname = 'registry'
+              and tablename in (
+                  'institutions',
+                  'institution_definition_versions',
+                  'regulatory_registrations',
+                  'institution_aliases',
+                  'institution_cohorts',
+                  'regulatory_concepts',
+                  'regulatory_concept_scopes'
+              )
+        )
+        and not exists (select 1 from registry.institutions)
+        and not exists (select 1 from registry.institution_definition_versions)
+        and not exists (select 1 from registry.regulatory_registrations)
+        and not exists (select 1 from registry.institution_aliases)
+        and not exists (select 1 from registry.institution_cohorts)
+        and not exists (select 1 from registry.regulatory_concepts)
+        and not exists (select 1 from registry.regulatory_concept_scopes)
+        and (
+            select bool_and(
+                pg_catalog.has_table_privilege(
+                    'service_role', format('registry.%I', table_name), 'SELECT'
+                )
+                and not pg_catalog.has_table_privilege(
+                    'service_role',
+                    format('registry.%I', table_name),
+                    'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+                )
+            )
+            from unnest(array[
+                'institutions',
+                'institution_definition_versions',
+                'regulatory_registrations',
+                'institution_aliases',
+                'institution_cohorts',
+                'regulatory_concepts',
+                'regulatory_concept_scopes'
+            ]) as table_name
+        )
+        and (
+            select bool_and(not pg_catalog.has_table_privilege(
+                role_name,
+                format('registry.%I', table_name),
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array[
+                'institutions',
+                'institution_definition_versions',
+                'regulatory_registrations',
+                'institution_aliases',
+                'institution_cohorts',
+                'regulatory_concepts',
+                'regulatory_concept_scopes'
+            ]) as table_name
+        ) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'registry'
+      and relation.relname in (
+          'institutions',
+          'institution_definition_versions',
+          'regulatory_registrations',
+          'institution_aliases',
+          'institution_cohorts',
+          'regulatory_concepts',
+          'regulatory_concept_scopes'
+      )
+), pr14_boundary_gate as (
+    select
+        pg_catalog.to_regclass('reported.reported_facts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('metrics.metric_definitions') is null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('audit.review_decisions') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
+)
+select
+    pr14_extension_gate.valid as pr14_extension_gate,
+    pr14_inventory_gate.valid as pr14_inventory_gate,
+    pr14_columns_gate.valid as pr14_columns_gate,
+    pr14_validity_gate.valid as pr14_validity_gate,
+    pr14_alias_normalization_gate.valid as pr14_alias_normalization_gate,
+    pr14_relationship_gate.valid as pr14_relationship_gate,
+    pr14_exclusion_gate.valid as pr14_exclusion_gate,
+    pr14_defaults_gate.valid as pr14_defaults_gate,
+    pr14_indexes_gate.valid as pr14_indexes_gate,
+    pr14_access_state_gate.valid as pr14_access_state_gate,
+    pr14_boundary_gate.valid as pr14_boundary_gate,
+    (
+        pr14_extension_gate.valid
+        and pr14_inventory_gate.valid
+        and pr14_columns_gate.valid
+        and pr14_validity_gate.valid
+        and pr14_alias_normalization_gate.valid
+        and pr14_relationship_gate.valid
+        and pr14_exclusion_gate.valid
+        and pr14_defaults_gate.valid
+        and pr14_indexes_gate.valid
+        and pr14_access_state_gate.valid
+        and pr14_boundary_gate.valid
+    ) as pr14_schema_passed
+from pr14_extension_gate
+cross join pr14_inventory_gate
+cross join pr14_columns_gate
+cross join pr14_validity_gate
+cross join pr14_alias_normalization_gate
+cross join pr14_relationship_gate
+cross join pr14_exclusion_gate
+cross join pr14_defaults_gate
+cross join pr14_indexes_gate
+cross join pr14_access_state_gate
+cross join pr14_boundary_gate
+\gset
+
+\echo PR14 gate extension: :pr14_extension_gate
+\echo PR14 gate inventory: :pr14_inventory_gate
+\echo PR14 gate columns: :pr14_columns_gate
+\echo PR14 gate validity: :pr14_validity_gate
+\echo PR14 gate alias_normalization: :pr14_alias_normalization_gate
+\echo PR14 gate relationships: :pr14_relationship_gate
+\echo PR14 gate exclusions: :pr14_exclusion_gate
+\echo PR14 gate defaults: :pr14_defaults_gate
+\echo PR14 gate indexes: :pr14_indexes_gate
+\echo PR14 gate access_state: :pr14_access_state_gate
+\echo PR14 gate boundary: :pr14_boundary_gate
+\echo PR14 aggregate schema: :pr14_schema_passed
+
+\echo PR14 diagnostic btree_gist
+select
+    extension.extname,
+    namespace.nspname as extension_schema
+from pg_catalog.pg_extension extension
+join pg_catalog.pg_namespace namespace
+  on namespace.oid = extension.extnamespace
+where extension.extname = 'btree_gist';
+
+\echo PR14 diagnostic column counts
+select
+    actual.table_name,
+    count(*) as column_count
+from information_schema.columns actual
+where actual.table_schema = 'registry'
+  and actual.table_name in (
+      'institutions',
+      'institution_definition_versions',
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts',
+      'regulatory_concepts',
+      'regulatory_concept_scopes'
+  )
+group by actual.table_name
+order by actual.table_name;
+
+\echo PR14 diagnostic validity generation
+select
+    actual.table_name,
+    actual.udt_name,
+    actual.is_generated,
+    actual.generation_expression
+from information_schema.columns actual
+where actual.table_schema = 'registry'
+  and actual.column_name = 'validity'
+  and actual.table_name in (
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts'
+  )
+order by actual.table_name;
+
+\echo PR14 diagnostic relationship constraintdefs
+select
+    expected.constraint_name,
+    actual.contype::text as constraint_kind,
+    pg_catalog.pg_get_constraintdef(actual.oid) as constraint_definition
+from (values
+    ('institution_definition_versions_identity_key'),
+    ('regulatory_registrations_definition_institution_fkey'),
+    ('institution_aliases_definition_institution_fkey'),
+    ('institution_cohorts_definition_institution_fkey'),
+    ('regulatory_registrations_regulator_fkey'),
+    ('institution_aliases_source_fkey')
+) as expected(constraint_name)
+left join pg_catalog.pg_constraint actual
+  on actual.conname = expected.constraint_name
+order by expected.constraint_name;
+
+\echo PR14 diagnostic non-constraint indexes
+select
+    table_relation.relname as table_name,
+    index_relation.relname as index_name
+from pg_catalog.pg_index index_definition
+join pg_catalog.pg_class index_relation
+  on index_relation.oid = index_definition.indexrelid
+join pg_catalog.pg_class table_relation
+  on table_relation.oid = index_definition.indrelid
+join pg_catalog.pg_namespace namespace
+  on namespace.oid = table_relation.relnamespace
+where namespace.nspname = 'registry'
+  and table_relation.relname in (
+      'institutions',
+      'institution_definition_versions',
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts',
+      'regulatory_concepts',
+      'regulatory_concept_scopes'
+  )
+  and not exists (
+      select 1
+      from pg_catalog.pg_constraint backing_constraint
+      where backing_constraint.conindid = index_definition.indexrelid
+  )
+order by table_relation.relname, index_relation.relname;
+
+\echo PR14 diagnostic service_role privileges
+select
+    table_name,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'SELECT'
+    ) as select_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'INSERT'
+    ) as insert_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'UPDATE'
+    ) as update_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'DELETE'
+    ) as delete_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'TRUNCATE'
+    ) as truncate_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'REFERENCES'
+    ) as references_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'TRIGGER'
+    ) as trigger_priv
+from unnest(array[
+    'institutions',
+    'institution_definition_versions',
+    'regulatory_registrations',
+    'institution_aliases',
+    'institution_cohorts',
+    'regulatory_concepts',
+    'regulatory_concept_scopes'
+]) as table_name
+order by table_name;
+
+\if :pr14_schema_passed
+\echo 'PR14 institution identity schema contract passed.'
+\else
+\echo 'PR14 institution identity schema contract failed.'
+do $$
+begin
+    raise exception 'PR14 institution identity schema gate failed.';
+end
+$$;
+\endif
+
+insert into registry.institutions (institution_id, institution_code, country)
+values
+    ('00000000-0000-4000-8000-000000000701', 'test_bank_a', 'MX'),
+    ('00000000-0000-4000-8000-000000000702', 'test_bank_b', 'MX');
+
+insert into registry.institution_definition_versions (
+    institution_definition_version_id, institution_id, definition_version,
+    canonical_label, lifecycle, provenance, definition_snapshot, definition_hash, git_sha
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000701',
+        1, 'Test Bank A', 'draft', 'Synthetic PR14 fixture.',
+        '{"institution":{"code":"test_bank_a"},"referenced_cohort_definitions":[]}'::jsonb,
+        repeat('1', 64), repeat('2', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000712',
+        '00000000-0000-4000-8000-000000000701',
+        2, 'Test Bank A Restated', 'active', 'Synthetic PR14 fixture.',
+        '{"institution":{"code":"test_bank_a","definition_version":2},"referenced_cohort_definitions":[]}'::jsonb,
+        repeat('3', 64), repeat('4', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000713',
+        '00000000-0000-4000-8000-000000000702',
+        1, 'Test Bank B', 'draft', 'Synthetic PR14 fixture.',
+        '{"institution":{"code":"test_bank_b"},"referenced_cohort_definitions":[]}'::jsonb,
+        repeat('5', 64), repeat('6', 40)
+    );
+
+insert into registry.reporting_scopes (reporting_scope_id, scope_code)
+values ('00000000-0000-4000-8000-000000000761', 'test_individual_scope');
+
+insert into registry.regulatory_registrations (
+    regulatory_registration_id, institution_id, institution_definition_version_id,
+    regulator_id, registration_type, registration_code, valid_from, valid_to
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000721',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000001',
+        'test_registration', 'REG-A', '2026-01-01', '2026-05-31'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000722',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000001',
+        'test_registration', 'REG-A', '2026-06-01', null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000723',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000001',
+        'test_registration', 'REG-DAY', '2026-07-01', '2026-07-01'
+    );
+
+insert into registry.institution_aliases (
+    institution_alias_id, institution_id, institution_definition_version_id,
+    source_id, alias_value, normalized_alias, alias_type, valid_from, valid_to
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000731',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000011',
+        'Banco Uno', 'banco uno', 'legal_name', '2026-01-01', '2026-05-31'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000732',
+        '00000000-0000-4000-8000-000000000702',
+        '00000000-0000-4000-8000-000000000713',
+        '00000000-0000-4000-8000-000000000011',
+        'Banco Uno', 'banco uno', 'source_label', '2026-06-01', null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000733',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        '00000000-0000-4000-8000-000000000012',
+        'Banco Uno', 'banco uno', 'trade_name', '2026-01-01', null
+    );
+
+insert into registry.institution_cohorts (
+    institution_cohort_id, institution_id, institution_definition_version_id,
+    cohort_code, valid_from, valid_to, rationale
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000741',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        'traditional_bank', '2026-01-01', null, 'Synthetic traditional membership.'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000742',
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000711',
+        'digital_bank', '2026-01-01', null, 'Synthetic overlapping other cohort.'
+    );
+
+insert into registry.regulatory_concepts (
+    regulatory_concept_id, source_id, external_code, definition_version, label,
+    definition, lifecycle, valid_from, valid_to, definition_snapshot, definition_hash, git_sha
+)
+values (
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '1401', 1, 'Gross loans source line', 'Synthetic source concept.',
+    'draft', '2026-01-01', null,
+    '{"source_code":"test_source","code":"1401"}'::jsonb,
+    repeat('7', 64), repeat('8', 40)
+);
+
+insert into registry.regulatory_concept_scopes (
+    regulatory_concept_id, reporting_scope_id
+)
+values (
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000761'
+);
+
+do $$
+declare
+    rejected boolean;
+    violated_constraint text;
+begin
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institutions (institution_code, country)
+        values ('test_bank_a', 'MX');
+    exception when unique_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institutions_institution_code_key';
+    end;
+    if not rejected then
+        raise exception 'duplicate institution_code was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institution_definition_versions (
+            institution_id, definition_version, canonical_label, lifecycle, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            1, 'Duplicate version', 'draft', 'Synthetic.',
+            '{"institution":{"code":"test_bank_a"}}'::jsonb,
+            repeat('9', 64), repeat('a', 40)
+        );
+    exception when unique_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institution_definition_versions_institution_definition_key';
+    end;
+    if not rejected then
+        raise exception 'duplicate institution definition version was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institution_definition_versions (
+            institution_id, definition_version, canonical_label, lifecycle, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            3, 'Bad hash', 'draft', 'Synthetic.',
+            '{"institution":{"code":"test_bank_a"}}'::jsonb,
+            repeat('A', 64), repeat('b', 40)
+        );
+    exception when check_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institution_definition_versions_definition_hash_sha256';
+    end;
+    if not rejected then
+        raise exception 'uppercase definition hash was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institution_definition_versions (
+            institution_id, definition_version, canonical_label, lifecycle, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            3, 'Bad git', 'draft', 'Synthetic.',
+            '{"institution":{"code":"test_bank_a"}}'::jsonb,
+            repeat('c', 64), repeat('g', 40)
+        );
+    exception when check_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institution_definition_versions_git_sha_full';
+    end;
+    if not rejected then
+        raise exception 'invalid Git SHA was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_registrations (
+            institution_id, institution_definition_version_id, regulator_id,
+            registration_type, registration_code, valid_from, valid_to
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000713',
+            '00000000-0000-4000-8000-000000000001',
+            'test_registration', 'REG-CROSS', '2026-01-01', null
+        );
+    exception when foreign_key_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_registrations_definition_institution_fkey';
+    end;
+    if not rejected then
+        raise exception 'cross-institution definition version was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_registrations (
+            institution_id, institution_definition_version_id, regulator_id,
+            registration_type, registration_code, valid_from, valid_to
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000711',
+            '00000000-0000-4000-8000-000000000001',
+            'test_registration', 'REG-A', '2026-05-31', '2026-06-30'
+        );
+    exception when exclusion_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_registrations_validity_excl';
+    end;
+    if not rejected then
+        raise exception 'overlapping inclusive registration range was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_registrations (
+            institution_id, institution_definition_version_id, regulator_id,
+            registration_type, registration_code, valid_from, valid_to
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000711',
+            '00000000-0000-4000-8000-000000000001',
+            'test_registration', 'REG-A', '2026-06-01', '2026-06-30'
+        );
+    exception when exclusion_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_registrations_validity_excl';
+    end;
+    if not rejected then
+        raise exception 'same-day registration boundary reuse was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_registrations (
+            institution_id, institution_definition_version_id, regulator_id,
+            registration_type, registration_code, valid_from
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000711',
+            '00000000-0000-4000-8000-000000009999',
+            'test_registration', 'REG-MISSING', '2026-01-01'
+        );
+    exception when foreign_key_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_registrations_regulator_fkey';
+    end;
+    if not rejected then
+        raise exception 'nonexistent regulator was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institution_aliases (
+            institution_id, institution_definition_version_id, source_id,
+            alias_value, normalized_alias, alias_type, valid_from, valid_to
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000711',
+            '00000000-0000-4000-8000-000000000011',
+            'Banco Uno', 'banco uno', 'legal_name', '2026-05-31', '2026-12-31'
+        );
+    exception when exclusion_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institution_aliases_validity_excl';
+    end;
+    if not rejected then
+        raise exception 'overlapping same-source alias was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.institution_cohorts (
+            institution_id, institution_definition_version_id, cohort_code,
+            valid_from, valid_to, rationale
+        ) values (
+            '00000000-0000-4000-8000-000000000701',
+            '00000000-0000-4000-8000-000000000711',
+            'traditional_bank', '2026-06-01', null, 'Overlapping same cohort.'
+        );
+    exception when exclusion_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'institution_cohorts_validity_excl';
+    end;
+    if not rejected then
+        raise exception 'overlapping same-cohort membership was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_concepts (
+            source_id, external_code, definition_version, label, definition,
+            lifecycle, valid_from, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000011',
+            '1401', 1, 'Duplicate', 'Duplicate.', 'draft', '2026-01-01',
+            '{"code":"1401"}'::jsonb, repeat('d', 64), repeat('e', 40)
+        );
+    exception when unique_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_concepts_source_code_version_key';
+    end;
+    if not rejected then
+        raise exception 'duplicate regulatory concept identity was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_concepts (
+            source_id, external_code, definition_version, label, definition,
+            lifecycle, valid_from, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000011',
+            '1402', 1, 'Bad hash', 'Bad hash.', 'draft', '2026-01-01',
+            '{"code":"1402"}'::jsonb, repeat('D', 64), repeat('f', 40)
+        );
+    exception when check_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_concepts_definition_hash_sha256';
+    end;
+    if not rejected then
+        raise exception 'uppercase regulatory concept hash was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_concept_scopes (
+            regulatory_concept_id, reporting_scope_id
+        ) values (
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000009999'
+        );
+    exception when foreign_key_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_concept_scopes_scope_fkey';
+    end;
+    if not rejected then
+        raise exception 'invalid reporting scope pairing was accepted';
+    end if;
+
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into registry.regulatory_concept_scopes (
+            regulatory_concept_id, reporting_scope_id
+        ) values (
+            '00000000-0000-4000-8000-000000009998',
+            '00000000-0000-4000-8000-000000000761'
+        );
+    exception when foreign_key_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_concept_scopes_concept_fkey';
+    end;
+    if not rejected then
+        raise exception 'invalid regulatory concept pairing was accepted';
+    end if;
+end
+$$;
+
+with changed as (update registry.regulatory_registrations
+    set valid_to = '2027-12-31',
+        institution_definition_version_id = '00000000-0000-4000-8000-000000000712'
+    where regulatory_registration_id = '00000000-0000-4000-8000-000000000722'
+    returning regulatory_registration_id, valid_to, institution_definition_version_id
+)
+select
+    count(*) = 1
+    and bool_and(regulatory_registration_id = '00000000-0000-4000-8000-000000000722')
+    and bool_and(valid_to = date '2027-12-31')
+    and bool_and(institution_definition_version_id = '00000000-0000-4000-8000-000000000712')
+    as pr14_projection_close_passed
+from changed
+\gset
+
+\if :pr14_projection_close_passed
+\else
+\echo 'PR14 projection valid_to closure failed.'
+do $$
+begin
+    raise exception 'PR14 projection maintenance gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    rejected boolean;
+    violated_constraint text;
+begin
+    rejected := false;
+    violated_constraint := null;
+    begin
+        execute $statement$update registry.regulatory_registrations
+            set institution_definition_version_id = '00000000-0000-4000-8000-000000000713'
+            where regulatory_registration_id = '00000000-0000-4000-8000-000000000722'$statement$;
+    exception when foreign_key_violation then
+        get stacked diagnostics violated_constraint = CONSTRAINT_NAME;
+        rejected := violated_constraint = 'regulatory_registrations_definition_institution_fkey';
+    end;
+    if not rejected then
+        raise exception 'projection retargeted to another institution version';
+    end if;
+end
+$$;
+
+set local role service_role;
+
+select count(*) >= 2 as pr14_service_select_passed
+from registry.institutions
+\gset
+
+\if :pr14_service_select_passed
+\else
+\echo 'PR14 service_role SELECT failed.'
+do $$
+begin
+    raise exception 'PR14 service_role SELECT gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        insert into registry.institutions (institution_code, country)
+        values ('service_role_bank', 'MX');
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role inserted an institution';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update registry.institution_definition_versions
+            set canonical_label = 'Mutated'
+            where institution_definition_version_id = '00000000-0000-4000-8000-000000000711'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role updated an institution definition snapshot';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update registry.regulatory_registrations
+            set valid_to = '2028-12-31'
+            where regulatory_registration_id = '00000000-0000-4000-8000-000000000722'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role updated a registration projection';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from registry.institutions
+            where institution_id = '00000000-0000-4000-8000-000000000701'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role deleted an institution';
+    end if;
+end
+$$;
+
+reset role;
+
+select
+    (select count(*) = 2 from registry.institutions)
+    and (select count(*) = 3 from registry.institution_definition_versions)
+    and (select count(*) = 3 from registry.regulatory_registrations)
+    and (select count(*) = 3 from registry.institution_aliases)
+    and (select count(*) = 2 from registry.institution_cohorts)
+    and (select count(*) = 1 from registry.regulatory_concepts)
+    and (select count(*) = 1 from registry.regulatory_concept_scopes)
+    and (
+        select valid_to = date '2027-12-31'
+            and institution_definition_version_id = '00000000-0000-4000-8000-000000000712'
+        from registry.regulatory_registrations
+        where regulatory_registration_id = '00000000-0000-4000-8000-000000000722'
+    ) as pr14_behavior_passed
+\gset
+
+\if :pr14_behavior_passed
+\else
+\echo 'PR14 aggregate behavioral smoke failed.'
+do $$
+begin
+    raise exception 'PR14 aggregate behavioral gate failed.';
+end
+$$;
+\endif
+
 rollback;
 
 \if :pr11_behavior_passed
@@ -2373,6 +3439,32 @@ select
 do $$
 begin
     raise exception 'PR13 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    not exists (select 1 from registry.institutions)
+    and not exists (select 1 from registry.institution_definition_versions)
+    and not exists (select 1 from registry.regulatory_registrations)
+    and not exists (select 1 from registry.institution_aliases)
+    and not exists (select 1 from registry.institution_cohorts)
+    and not exists (select 1 from registry.regulatory_concepts)
+    and not exists (select 1 from registry.regulatory_concept_scopes)
+    and not exists (
+        select 1 from registry.reporting_scopes
+        where reporting_scope_id = '00000000-0000-4000-8000-000000000761'
+    )
+    as pr14_rollback_passed
+\gset
+
+\if :pr14_rollback_passed
+\echo 'PR14 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR14 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR14 rollback cleanliness gate failed.';
 end
 $$;
 \endif
