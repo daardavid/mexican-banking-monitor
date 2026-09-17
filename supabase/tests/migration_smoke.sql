@@ -2350,6 +2350,25 @@ end
 $$;
 \endif
 
+\echo PR14 diagnostic uuid defaults
+select
+    actual.table_name,
+    actual.column_name,
+    actual.column_default
+from (values
+    ('institutions', 'institution_id'),
+    ('institution_definition_versions', 'institution_definition_version_id'),
+    ('regulatory_registrations', 'regulatory_registration_id'),
+    ('institution_aliases', 'institution_alias_id'),
+    ('institution_cohorts', 'institution_cohort_id'),
+    ('regulatory_concepts', 'regulatory_concept_id')
+) as expected(table_name, column_name)
+join information_schema.columns actual
+  on actual.table_schema = 'registry'
+ and actual.table_name = expected.table_name
+ and actual.column_name = expected.column_name
+order by actual.table_name, actual.column_name;
+
 with pr14_extension_gate as (
     select
         count(*) = 1
@@ -2514,7 +2533,13 @@ with pr14_extension_gate as (
     join pg_catalog.pg_constraint actual
       on actual.conname = expected.constraint_name
 ), pr14_defaults_gate as (
-    select count(*) = 6 and bool_and(column_default = 'gen_random_uuid()') as valid
+    select
+        count(*) = 6
+        and bool_and(column_default in (
+            'gen_random_uuid()',
+            'pg_catalog.gen_random_uuid()',
+            'extensions.gen_random_uuid()'
+        )) as valid
     from (values
         ('institutions', 'institution_id'),
         ('institution_definition_versions', 'institution_definition_version_id'),
