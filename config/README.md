@@ -6,7 +6,10 @@ templates, or arbitrary transformation text.
 
 - `sources.yml` owns source metadata, non-secret endpoints, formats, roles, and symbolic adapters.
 - `institutions.yml` keeps MONITOR identity separate from regulatory registrations, aliases, and
-  explicit cohort memberships.
+  explicit cohort memberships. Each institution definition carries `definition_version`. Alias
+  overlap uses the canonical Python normalizer `" ".join(value.split()).casefold()`; PostgreSQL
+  stores that supplied value and does not reimplement Unicode case folding. Same-institution,
+  same-cohort overlapping memberships are rejected; different cohorts may overlap.
 - `reporting_scopes.yml` owns the evidence-controlled scope registry.
 - `concepts.yml` owns MONITOR canonical concepts, not source regulatory taxonomy.
 - `mappings.yml` owns source concepts and their versioned bridge to canonical concepts.

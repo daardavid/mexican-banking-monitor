@@ -17,4 +17,5 @@ cohorts:
     lifecycle: active
 
 # Institution identities and registrations remain empty until curated source evidence exists.
+# Curated rows will require definition_version; do not invent identities here.
 institutions: []

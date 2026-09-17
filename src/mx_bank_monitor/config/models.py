@@ -124,6 +124,11 @@ def _ranges_overlap(
     )
 
 
+def normalize_institution_alias(value: str) -> str:
+    """Canonical alias identity used by editorial overlap validation."""
+    return " ".join(value.split()).casefold()
+
+
 class VersionedDocument(ContractModel):
     schema_version: Annotated[StrictInt, Field(ge=1)]
 
@@ -211,6 +216,7 @@ class CohortMembership(ValidityRange):
 
 class InstitutionDefinition(ContractModel):
     code: Identifier
+    definition_version: PositiveVersion
     canonical_label: NonEmptyText
     country: CountryCode
     lifecycle: DefinitionLifecycle
@@ -240,12 +246,26 @@ class InstitutionsDocument(VersionedDocument):
         registrations: list[tuple[str, RegulatoryRegistration]] = []
         aliases: list[tuple[str, InstitutionAlias]] = []
         for institution in self.institutions:
-            for membership in institution.cohorts:
+            for index, membership in enumerate(institution.cohorts):
                 if membership.cohort_code not in known_cohorts:
                     raise ValueError(
                         f"institution {institution.code} references unknown cohort "
                         f"{membership.cohort_code}"
                     )
+                for other_membership in institution.cohorts[index + 1 :]:
+                    if (
+                        membership.cohort_code == other_membership.cohort_code
+                        and _ranges_overlap(
+                            membership.valid_from,
+                            membership.valid_to,
+                            other_membership.valid_from,
+                            other_membership.valid_to,
+                        )
+                    ):
+                        raise ValueError(
+                            "overlapping cohort membership "
+                            f"{membership.cohort_code} for institution {institution.code}"
+                        )
             registrations.extend((institution.code, item) for item in institution.registrations)
             aliases.extend((institution.code, item) for item in institution.aliases)
 
@@ -275,11 +295,11 @@ class InstitutionsDocument(VersionedDocument):
                     )
 
         for index, (institution_code, alias) in enumerate(aliases):
-            alias_identity = (alias.source_code, " ".join(alias.value.split()).casefold())
+            alias_identity = (alias.source_code, normalize_institution_alias(alias.value))
             for other_code, other_alias in aliases[index + 1 :]:
                 other_alias_identity = (
                     other_alias.source_code,
-                    " ".join(other_alias.value.split()).casefold(),
+                    normalize_institution_alias(other_alias.value),
                 )
                 if alias_identity == other_alias_identity and _ranges_overlap(
                     alias.valid_from,

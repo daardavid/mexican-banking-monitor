@@ -156,7 +156,9 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     )
     assert "PR1\u2013PR13 are complete" in current_state
     assert (
-        "PR13\nMERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 NEXT;"
+        "PR13\nMERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
+        "PR14 IMPLEMENTED /\nPRODUCTION DEPLOYMENT PENDING; PR15 BLOCKED PENDING "
+        "PR14 PRODUCTION VERIFICATION"
         in current_state
     )
     assert (
@@ -188,24 +190,31 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly four migrations." in current_state
+    assert "The repository contains exactly five migrations." in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
         current_state
     )
     assert "RLS is\n  enabled with no policies" in current_state
     assert "no\n  SECURITY DEFINER functions were introduced" in current_state
-    assert "No PR14 registry identity objects exist." in current_state
+    assert "Production still has no PR14 registry identity\n  objects." in current_state
     assert "PR13 audit ingestion lifecycle is merged, deployed, and verified in production." in (
         current_state
     )
-    assert "PR14 feat/institution-identity-schema` — NEXT." in current_state
-    assert "PR14 `feat/institution-identity-schema` is NEXT and is not yet implemented." in (
+    assert (
+        "PR14 feat/institution-identity-schema` — IMPLEMENTED on "
+        "`feat/institution-identity-schema`;\n  production deployment PENDING."
+        in current_state
+    )
+    assert (
+        "PR14 `feat/institution-identity-schema` is implemented in the "
+        "repository and is not deployed."
+        in current_state
+    )
+    assert "PR15 remains blocked until PR14 is merged" in current_state
+    assert "PR14 `feat/institution-identity-schema` is NEXT and is not yet implemented." not in (
         current_state
     )
-    assert "PRODUCTION DEPLOYMENT PENDING" not in current_state
-    assert "production does not yet contain it" not in current_state
-    assert "PR14 cannot begin until" not in current_state
     assert (
         "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
         "artifact sizes"
