@@ -154,7 +154,7 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert (
-        "PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13 NEXT;"
+        "PR13\nIMPLEMENTED / PRODUCTION DEPLOYMENT PENDING; PR14 BLOCKED;"
         in current_state
     )
     assert (
@@ -182,7 +182,22 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     )
     assert "No repair or second provisioning run was performed." in current_state
     assert (
-        "PR13 feat/ingestion-run-lifecycle` — NEXT."
+        "PR13 feat/ingestion-run-lifecycle` — IMPLEMENTED / PRODUCTION DEPLOYMENT PENDING."
+        in current_state
+    )
+    assert "The repository contains exactly four migrations." in current_state
+    assert (
+        "`20260830234552 / ingestion_run_lifecycle`; production does not yet contain it."
+        in current_state
+    )
+    assert (
+        "PR14 feat/institution-identity-schema` — BLOCKED until PR13 is merged, deployed, "
+        "verified, and\n  recorded in the production-state documentation checkpoint."
+        in current_state
+    )
+    assert (
+        "PR14 cannot begin until PR13 is merged, deployed to production, verified read-only, "
+        "and followed\n  by a production-state documentation checkpoint on `main`."
         in current_state
     )
     assert (

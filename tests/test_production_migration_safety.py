@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,10 @@ PR10_MIGRATION_SHA256 = (
     "85cfae07f2999abaafbb22d5a97374dd19cbe824b228bd8b0319463d164b5274"
 )
 PR11_MIGRATION_NAME = "20260828164124_evidence_catalog_schema.sql"
+PR11_MIGRATION_SHA256 = (
+    "7ff9299eeba5d7571a957625da7e9216db13b43d02b10566aaf5975b879fe568"
+)
+PR13_MIGRATION_NAME = "20260830234552_ingestion_run_lifecycle.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -69,15 +74,64 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     migrations = load_migrations(REPOSITORY_ROOT / "supabase" / "migrations")
     content = migrations[0].path.read_bytes().replace(b"\r\n", b"\n")
     pr10_content = migrations[1].path.read_bytes().replace(b"\r\n", b"\n")
+    pr11_content = migrations[2].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
         PR10_MIGRATION_NAME,
         PR11_MIGRATION_NAME,
+        PR13_MIGRATION_NAME,
     ]
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
+    assert hashlib.sha256(pr11_content).hexdigest() == PR11_MIGRATION_SHA256
+
+
+def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(smoke_text.lower().split())
+
+    assert r"\quit 1" not in smoke_text
+    conditional_blocks = re.findall(
+        r"(?ms)^\\if\s+:[^\r\n]+\r?\n(.*?)^\\endif\s*$", smoke_text
+    )
+    assert len(conditional_blocks) == len(
+        re.findall(r"(?m)^\\if\s+:[^\r\n]+$", smoke_text)
+    )
+    for block in conditional_blocks:
+        assert r"\else" in block
+        failure_branch = block.split(r"\else", 1)[1].lower()
+        assert "do $$" in failure_branch
+        assert "raise exception" in failure_branch
+
+    assert normalized.count(
+        "where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')"
+    ) >= 1
+    assert (
+        "where namespace.nspname in "
+        "('reported', 'semantic', 'metrics', 'audit', 'serving')"
+    ) not in normalized
+    assert (
+        "where later_namespace.nspname in "
+        "('reported', 'semantic', 'metrics', 'audit', 'serving')"
+    ) not in normalized
+
+    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    assert "count(*) = 3" in audit_boundary
+    for expected_relation in (
+        "('ingestion_runs', 'r')",
+        "('ingestion_run_artifacts', 'r')",
+        "('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 's')",
+    ):
+        assert expected_relation in audit_boundary
+    assert "bool_and((relation.relname, relation.relkind::text) in" in audit_boundary
+    assert "where namespace.nspname = 'audit'" in audit_boundary
+    assert "do $ declare" not in normalized
 
 
 def test_pr10_migration_is_additive_private_and_unseeded() -> None:
@@ -295,6 +349,137 @@ def test_pr11_keeps_logical_releases_separate_from_exact_artifacts() -> None:
     ):
         assert release_only_column not in artifact_definition
     assert "default" not in artifact_definition.split("first_observed_at", 1)[1].split(",", 1)[0]
+
+
+def test_pr13_migration_is_additive_private_unseeded_and_in_scope() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR13_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    assert normalized.count("create table audit.") == 2
+    assert "create table audit.ingestion_runs (" in normalized
+    assert "create table audit.ingestion_run_artifacts (" in normalized
+    assert "alter table audit.ingestion_runs enable row level security;" in normalized
+    assert (
+        "alter table audit.ingestion_run_artifacts enable row level security;" in normalized
+    )
+    assert forbidden_operations(migration_text) == []
+    assert "insert into" not in normalized
+    assert "create policy" not in normalized
+    assert "security definer" not in normalized
+    assert "create role " not in normalized
+    assert "alter role " not in normalized
+    assert "cascade" not in normalized
+    assert "on delete" not in normalized
+    assert "on update" not in normalized
+
+    for protected_schema in (
+        "core.",
+        "ops.",
+        "analytics.",
+        "registry.institutions",
+        "reported.",
+        "semantic.",
+        "metrics.",
+        "serving.",
+        "public.regulatory_bank_metrics_v1",
+    ):
+        assert protected_schema not in normalized
+
+
+def test_pr13_freezes_lifecycle_provenance_and_database_owned_summaries() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR13_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    run_definition = normalized.split(
+        "create table audit.ingestion_runs (", 1
+    )[1].split("create table audit.ingestion_run_artifacts (", 1)[0]
+
+    assert "ingestion_run_id uuid primary key default gen_random_uuid()" in run_definition
+    assert (
+        "foreign key (source_id, source_definition_version) references "
+        "evidence.source_definition_versions(source_id, definition_version)"
+        in run_definition
+    )
+    assert "check (trigger_kind in ('manual', 'schedule', 'backfill', 'test'))" in (
+        run_definition
+    )
+    assert "restart" not in run_definition.split(
+        "constraint ingestion_runs_trigger_kind_valid", 1
+    )[1].split(")", 1)[0]
+    for status in ("pending", "running", "succeeded", "failed", "no_change"):
+        assert f"'{status}'" in run_definition
+    for counter in (
+        "artifacts_observed_count",
+        "artifacts_new_count",
+        "artifacts_reused_count",
+        "artifacts_revised_count",
+        "artifacts_failed_count",
+    ):
+        assert f"{counter} bigint not null default 0" in run_definition
+
+    assert "new.started_at := clock_timestamp()" in normalized
+    assert "new.completed_at := clock_timestamp()" in normalized
+    assert "terminal ingestion run is immutable" in normalized
+    assert "invalid ingestion run status transition" in normalized
+    assert "new.status in ('succeeded', 'failed', 'no_change')" in normalized
+    assert "artifacts_failed_count = 0" not in normalized
+    assert "artifacts_new_count > 0" not in normalized
+    assert "artifacts_revised_count > 0" not in normalized
+
+
+def test_pr13_artifact_invariants_and_append_only_contract_are_explicit() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR13_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    artifact_definition = normalized.split(
+        "create table audit.ingestion_run_artifacts (", 1
+    )[1].split("create function audit.enforce_ingestion_run_lifecycle()", 1)[0]
+
+    assert "generated always as identity primary key" in artifact_definition
+    assert "check (result in ('new', 'reused', 'revised', 'failed'))" in (
+        artifact_definition
+    )
+    assert "unique (observed_url)" not in artifact_definition
+    assert "headers json" not in artifact_definition
+    assert "for update;" in normalized
+    assert "artifact_source_id <> parent_source_id" in normalized
+    assert "new.result = 'revised' and superseded_release_id is null" in normalized
+    assert "new.result = 'new' and superseded_release_id is not null" in normalized
+    assert "before update or delete on audit.ingestion_run_artifacts" in normalized
+    assert "ingestion run artifact observations are append-only" in normalized
+
+
+def test_pr13_indexes_and_runtime_grants_are_narrow() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR13_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    expected_indexes = (
+        "ingestion_runs_source_created_idx",
+        "ingestion_runs_status_created_idx",
+        "ingestion_runs_restart_of_idx",
+        "ingestion_run_artifacts_run_idx",
+        "ingestion_run_artifacts_artifact_idx",
+    )
+
+    assert normalized.count("create index ") == len(expected_indexes)
+    for index_name in expected_indexes:
+        assert f"create index {index_name}" in normalized
+
+    assert "grant select on audit.ingestion_runs to service_role;" in normalized
+    assert "grant update (status, error_code, error_summary)" in normalized
+    assert "grant select on audit.ingestion_run_artifacts to service_role;" in normalized
+    assert "grant usage on sequence" in normalized
+    assert "grant update on audit.ingestion_runs" not in normalized
+    assert "grant update on audit.ingestion_run_artifacts" not in normalized
+    assert "grant delete" not in normalized
+    assert "grant truncate" not in normalized
+    assert "grant references" not in normalized
+    assert "grant trigger" not in normalized
 
 
 @pytest.mark.parametrize(

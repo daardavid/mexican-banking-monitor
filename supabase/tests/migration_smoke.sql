@@ -17,7 +17,10 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'sources', 'r'),
         ('evidence', 'source_definition_versions', 'r'),
         ('evidence', 'source_releases', 'r'),
-        ('evidence', 'source_artifacts', 'r')
+        ('evidence', 'source_artifacts', 'r'),
+        ('audit', 'ingestion_runs', 'r'),
+        ('audit', 'ingestion_run_artifacts', 'r'),
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
 )
 select
     format('%I.%I', expected.schema_name, expected.relation_name) as relation_name,
@@ -46,7 +49,10 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('evidence', 'sources', 'r'),
         ('evidence', 'source_definition_versions', 'r'),
         ('evidence', 'source_releases', 'r'),
-        ('evidence', 'source_artifacts', 'r')
+        ('evidence', 'source_artifacts', 'r'),
+        ('audit', 'ingestion_runs', 'r'),
+        ('audit', 'ingestion_run_artifacts', 'r'),
+        ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
 ), relation_gate as (
     select bool_and(actual.oid is not null and actual.relkind = expected.expected_kind::"char")
         as valid
@@ -271,7 +277,21 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             from pg_catalog.pg_class relation
             join pg_catalog.pg_namespace namespace
               on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('reported', 'semantic', 'metrics', 'audit', 'serving')
+            where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((relation.relname, relation.relkind::text) in (
+                    ('ingestion_runs', 'r'),
+                    ('ingestion_run_artifacts', 'r'),
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'audit'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and not exists (
@@ -333,7 +353,11 @@ left join rls_gate on true
 \echo 'Migration schema smoke passed.'
 \else
 \echo 'Migration schema smoke failed.'
-\quit 1
+do $$
+begin
+    raise exception 'Migration schema smoke gate failed.';
+end
+$$;
 \endif
 
 with evidence_columns_gate as (
@@ -644,8 +668,22 @@ with evidence_columns_gate as (
             from pg_catalog.pg_class later_relation
             join pg_catalog.pg_namespace later_namespace
               on later_namespace.oid = later_relation.relnamespace
-            where later_namespace.nspname in ('reported', 'semantic', 'metrics', 'audit', 'serving')
+            where later_namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
               and later_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((audit_relation.relname, audit_relation.relkind::text) in (
+                    ('ingestion_runs', 'r'),
+                    ('ingestion_run_artifacts', 'r'),
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class audit_relation
+            join pg_catalog.pg_namespace audit_namespace
+              on audit_namespace.oid = audit_relation.relnamespace
+            where audit_namespace.nspname = 'audit'
+              and audit_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
     from pg_catalog.pg_class relation
@@ -695,7 +733,11 @@ cross join legacy_table_gate
 \echo 'PR11 evidence catalog schema contract passed.'
 \else
 \echo 'PR11 evidence catalog schema contract failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 evidence catalog schema gate failed.';
+end
+$$;
 \endif
 
 insert into evidence.regulators (regulator_id, regulator_code, name, country)
@@ -1114,13 +1156,1188 @@ select
     ) as pr11_behavior_passed
 \gset
 
+
+with audit_columns_gate as (
+    select
+        count(*) = 34
+        and (
+            select count(*) = 34
+            from information_schema.columns
+            where table_schema = 'audit'
+              and table_name in ('ingestion_runs', 'ingestion_run_artifacts')
+        ) as valid
+    from (values
+        ('ingestion_runs', 'ingestion_run_id', 'uuid', 'NO'),
+        ('ingestion_runs', 'source_id', 'uuid', 'NO'),
+        ('ingestion_runs', 'source_definition_version', 'integer', 'NO'),
+        ('ingestion_runs', 'trigger_kind', 'text', 'NO'),
+        ('ingestion_runs', 'parameters', 'jsonb', 'NO'),
+        ('ingestion_runs', 'parser_implementation_key', 'text', 'YES'),
+        ('ingestion_runs', 'parser_implementation_version', 'text', 'YES'),
+        ('ingestion_runs', 'identity_definition_hash', 'text', 'YES'),
+        ('ingestion_runs', 'git_sha', 'text', 'NO'),
+        ('ingestion_runs', 'status', 'text', 'NO'),
+        ('ingestion_runs', 'created_at', 'timestamp with time zone', 'NO'),
+        ('ingestion_runs', 'started_at', 'timestamp with time zone', 'YES'),
+        ('ingestion_runs', 'completed_at', 'timestamp with time zone', 'YES'),
+        ('ingestion_runs', 'artifacts_observed_count', 'bigint', 'NO'),
+        ('ingestion_runs', 'artifacts_new_count', 'bigint', 'NO'),
+        ('ingestion_runs', 'artifacts_reused_count', 'bigint', 'NO'),
+        ('ingestion_runs', 'artifacts_revised_count', 'bigint', 'NO'),
+        ('ingestion_runs', 'artifacts_failed_count', 'bigint', 'NO'),
+        ('ingestion_runs', 'error_code', 'text', 'YES'),
+        ('ingestion_runs', 'error_summary', 'text', 'YES'),
+        ('ingestion_runs', 'restart_of_ingestion_run_id', 'uuid', 'YES'),
+        ('ingestion_run_artifacts', 'ingestion_run_artifact_id', 'bigint', 'NO'),
+        ('ingestion_run_artifacts', 'ingestion_run_id', 'uuid', 'NO'),
+        ('ingestion_run_artifacts', 'source_artifact_id', 'uuid', 'YES'),
+        ('ingestion_run_artifacts', 'observed_url', 'text', 'NO'),
+        ('ingestion_run_artifacts', 'final_url', 'text', 'YES'),
+        ('ingestion_run_artifacts', 'observed_at', 'timestamp with time zone', 'NO'),
+        ('ingestion_run_artifacts', 'http_status_code', 'smallint', 'YES'),
+        ('ingestion_run_artifacts', 'http_etag', 'text', 'YES'),
+        ('ingestion_run_artifacts', 'http_last_modified', 'text', 'YES'),
+        ('ingestion_run_artifacts', 'http_content_length', 'bigint', 'YES'),
+        ('ingestion_run_artifacts', 'result', 'text', 'NO'),
+        ('ingestion_run_artifacts', 'error_code', 'text', 'YES'),
+        ('ingestion_run_artifacts', 'error_summary', 'text', 'YES')
+    ) as expected(table_name, column_name, data_type, is_nullable)
+    join information_schema.columns actual
+      on actual.table_schema = 'audit'
+     and actual.table_name = expected.table_name
+     and actual.column_name = expected.column_name
+     and actual.data_type = expected.data_type
+     and actual.is_nullable = expected.is_nullable
+), audit_object_gate as (
+    select
+        (
+            select count(*) = 2 and bool_and(relation.relrowsecurity)
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'audit'
+              and relation.relname in ('ingestion_runs', 'ingestion_run_artifacts')
+              and relation.relkind = 'r'
+        )
+        and (
+            select count(*) = 3
+            from pg_catalog.pg_trigger trigger
+            join pg_catalog.pg_class relation on relation.oid = trigger.tgrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'audit'
+              and relation.relname in ('ingestion_runs', 'ingestion_run_artifacts')
+              and not trigger.tgisinternal
+        )
+        and (
+            select count(*) = 5
+            from pg_catalog.pg_indexes
+            where schemaname = 'audit'
+              and indexname in (
+                  'ingestion_runs_source_created_idx',
+                  'ingestion_runs_status_created_idx',
+                  'ingestion_runs_restart_of_idx',
+                  'ingestion_run_artifacts_run_idx',
+                  'ingestion_run_artifacts_artifact_idx'
+              )
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'audit'
+              and function.proname in (
+                  'enforce_ingestion_run_lifecycle',
+                  'enforce_ingestion_run_artifact_insert',
+                  'reject_ingestion_run_artifact_mutation'
+              )
+              and function.prosecdef
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_policies
+            where schemaname = 'audit'
+              and tablename in ('ingestion_runs', 'ingestion_run_artifacts')
+        ) as valid
+), audit_access_gate as (
+    select
+        pg_catalog.has_schema_privilege('service_role', 'audit', 'USAGE')
+        and not pg_catalog.has_schema_privilege('service_role', 'audit', 'CREATE')
+        and pg_catalog.has_table_privilege(
+            'service_role', 'audit.ingestion_runs', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role', 'audit.ingestion_runs',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_runs', 'source_id', 'INSERT'
+        )
+        and pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_runs', 'status', 'UPDATE'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_runs', 'started_at', 'UPDATE'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_runs', 'completed_at', 'UPDATE'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_runs', 'artifacts_observed_count', 'UPDATE'
+        )
+        and pg_catalog.has_table_privilege(
+            'service_role', 'audit.ingestion_run_artifacts', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role', 'audit.ingestion_run_artifacts',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and pg_catalog.has_column_privilege(
+            'service_role', 'audit.ingestion_run_artifacts', 'result', 'INSERT'
+        )
+        and pg_catalog.has_sequence_privilege(
+            'service_role',
+            'audit.ingestion_run_artifacts_ingestion_run_artifact_id_seq',
+            'USAGE'
+        )
+        and not pg_catalog.has_sequence_privilege(
+            'service_role',
+            'audit.ingestion_run_artifacts_ingestion_run_artifact_id_seq',
+            'SELECT, UPDATE'
+        )
+        and (
+            select bool_and(
+                not pg_catalog.has_table_privilege(
+                    role_name,
+                    format('audit.%I', table_name),
+                    'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+                )
+            )
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array['ingestion_runs', 'ingestion_run_artifacts']) as table_name
+        ) as valid
+), audit_boundary_gate as (
+    select
+        count(*) = 3
+        and bool_and((relation.relname, relation.relkind::text) in (
+            ('ingestion_runs', 'r'),
+            ('ingestion_run_artifacts', 'r'),
+            ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+        ))
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('audit.review_decisions') is null
+        and pg_catalog.to_regclass('registry.institutions') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'audit'
+      and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+), legacy_table_gate as (
+    select count(*) = 10 as valid
+    from (values
+        ('core', 'institutions'),
+        ('core', 'institution_aliases'),
+        ('core', 'institution_cohorts'),
+        ('core', 'financial_facts'),
+        ('ops', 'pipeline_runs'),
+        ('ops', 'source_releases'),
+        ('ops', 'pipeline_issues'),
+        ('analytics', 'metric_definitions'),
+        ('analytics', 'metric_observations'),
+        ('public', 'bank_metrics')
+    ) as expected(schema_name, table_name)
+    join pg_catalog.pg_namespace namespace on namespace.nspname = expected.schema_name
+    join pg_catalog.pg_class relation
+      on relation.relnamespace = namespace.oid
+     and relation.relname = expected.table_name
+     and relation.relkind = 'r'
+)
+select
+    audit_columns_gate.valid
+    and audit_object_gate.valid
+    and audit_access_gate.valid
+    and audit_boundary_gate.valid
+    and legacy_table_gate.valid as pr13_schema_passed
+from audit_columns_gate
+cross join audit_object_gate
+cross join audit_access_gate
+cross join audit_boundary_gate
+cross join legacy_table_gate
+\gset
+
+\if :pr13_schema_passed
+\echo 'PR13 ingestion lifecycle schema contract passed.'
+\else
+\echo 'PR13 ingestion lifecycle schema contract failed.'
+do $$
+begin
+    raise exception 'PR13 ingestion lifecycle schema gate failed.';
+end
+$$;
+\endif
+
+insert into evidence.regulators (regulator_id, regulator_code, name, country)
+values ('00000000-0000-4000-8000-000000000301', 'audit_test', 'Audit Test', 'MX');
+
+insert into evidence.sources (source_id, regulator_id, source_code)
+values
+    (
+        '00000000-0000-4000-8000-000000000311',
+        '00000000-0000-4000-8000-000000000301',
+        'audit_source'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000312',
+        '00000000-0000-4000-8000-000000000301',
+        'other_audit_source'
+    );
+
+insert into evidence.source_definition_versions (
+    source_definition_version_id, source_id, definition_version, label, country, sector,
+    adapter_key, methodological_role, lifecycle, definition_snapshot, config_hash, git_sha
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000321',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'Audit source', 'MX', 'banca_multiple', 'audit_source', 'primary', 'draft',
+        '{"code":"audit_source"}'::jsonb, repeat('1', 64), repeat('2', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000322',
+        '00000000-0000-4000-8000-000000000312',
+        1, 'Other source', 'MX', 'banca_multiple', 'other_audit_source', 'primary', 'draft',
+        '{"code":"other_audit_source"}'::jsonb, repeat('3', 64), repeat('4', 40)
+    );
+
+insert into evidence.source_releases (
+    source_release_id, source_id, release_family_key, revision, first_observed_at,
+    release_identity_hash, metadata, supersedes_source_release_id
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000401',
+        '00000000-0000-4000-8000-000000000311',
+        'audit_release', null, '2026-08-30T10:00:00Z', repeat('a', 64), '{}'::jsonb, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000402',
+        '00000000-0000-4000-8000-000000000311',
+        'audit_release', 'revision_2', '2026-08-30T11:00:00Z', repeat('b', 64),
+        '{}'::jsonb, '00000000-0000-4000-8000-000000000401'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000403',
+        '00000000-0000-4000-8000-000000000312',
+        'other_release', null, '2026-08-30T10:00:00Z', repeat('c', 64), '{}'::jsonb, null
+    );
+
+insert into evidence.source_artifacts (
+    source_artifact_id, source_release_id, filename, original_url, final_url, mime_type,
+    byte_length, sha256, artifact_role, storage_backend, storage_key, first_observed_at
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000501',
+        '00000000-0000-4000-8000-000000000401',
+        'audit.csv', 'https://example.test/audit.csv', 'https://example.test/audit.csv',
+        'text/csv', 10, repeat('d', 64), 'primary', 'local', 'sha256/dd/audit',
+        '2026-08-30T10:00:00Z'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000502',
+        '00000000-0000-4000-8000-000000000402',
+        'audit-revised.csv', 'https://example.test/revised.csv',
+        'https://example.test/revised.csv', 'text/csv', 11, repeat('e', 64), 'primary',
+        'local', 'sha256/ee/revised', '2026-08-30T11:00:00Z'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000503',
+        '00000000-0000-4000-8000-000000000403',
+        'other.csv', 'https://example.test/other.csv', 'https://example.test/other.csv',
+        'text/csv', 12, repeat('f', 64), 'primary', 'local', 'sha256/ff/other',
+        '2026-08-30T10:00:00Z'
+    );
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, git_sha, status
+        ) values (
+            '00000000-0000-4000-8000-000000000601',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '{}'::jsonb, repeat('1', 40), 'running'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'direct running run insert was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, git_sha, status, started_at, completed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000602',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '{}'::jsonb, repeat('1', 40), 'succeeded',
+            clock_timestamp(), clock_timestamp()
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'direct terminal run insert was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000603',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'restart', '{}'::jsonb, repeat('1', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid trigger kind was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000604',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '[]'::jsonb, repeat('1', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'non-object run parameters were accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, parser_implementation_key, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000605',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '{}'::jsonb, 'test_parser', repeat('1', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unpaired parser provenance was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, identity_definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000606',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '{}'::jsonb, repeat('A', 64), repeat('1', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid identity hash was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            parameters, git_sha
+        ) values (
+            '00000000-0000-4000-8000-000000000607',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', '{}'::jsonb, repeat('g', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid Git SHA was accepted';
+    end if;
+end
+$$;
+
+insert into audit.ingestion_runs (
+    ingestion_run_id, source_id, source_definition_version, trigger_kind, parameters,
+    parser_implementation_key, parser_implementation_version, identity_definition_hash,
+    git_sha
+)
+values (
+    '00000000-0000-4000-8000-000000000610',
+    '00000000-0000-4000-8000-000000000311',
+    1, 'manual', '{"period":"2026-06"}'::jsonb,
+    'test_parser', '1.0.0', repeat('5', 64), repeat('6', 40)
+);
+
+select
+    status = 'pending'
+    and started_at is null
+    and completed_at is null
+    and artifacts_observed_count = 0
+    and artifacts_failed_count = 0 as pr13_pending_valid
+from audit.ingestion_runs
+where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+\gset
+
+\if :pr13_pending_valid
+\else
+\echo 'Canonical pending run state failed.'
+do $$
+begin
+    raise exception 'PR13 canonical pending run gate failed.';
+end
+$$;
+\endif
+
+with changed as (update audit.ingestion_runs
+set status = 'running'
+where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+returning 1) select count(*) from changed;
+
+insert into audit.ingestion_run_artifacts (
+    ingestion_run_id, source_artifact_id, observed_url, final_url, observed_at,
+    http_status_code, http_etag, http_last_modified, http_content_length, result,
+    error_code, error_summary
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000610',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/repeated.csv', 'https://example.test/audit.csv',
+        '2026-08-30T12:00:00Z', 200, '"audit"', 'Sun, 30 Aug 2026 12:00:00 GMT', 10,
+        'new', null, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000610',
+        null, 'https://example.test/repeated.csv', 'https://example.test/audit.csv',
+        '2026-08-30T12:00:01Z', 503, null, null, 0, 'failed',
+        'http_unavailable', 'Transient upstream response.'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000610',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/repeated.csv', 'https://example.test/audit.csv',
+        '2026-08-30T12:00:02Z', 200, null, null, 10, 'reused', null, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000610',
+        '00000000-0000-4000-8000-000000000502',
+        'https://example.test/revised.csv', 'https://example.test/revised.csv',
+        '2026-08-30T12:00:03Z', 200, null, null, 11, 'revised', null, null
+    );
+
+select
+    status = 'running'
+    and started_at is not null
+    and completed_at is null
+    and artifacts_observed_count = 0
+    and artifacts_new_count = 0
+    and artifacts_reused_count = 0
+    and artifacts_revised_count = 0
+    and artifacts_failed_count = 0 as pr13_running_summary_zero
+from audit.ingestion_runs
+where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+\gset
+
+\if :pr13_running_summary_zero
+\else
+\echo 'Running counters were not zero.'
+do $$
+begin
+    raise exception 'PR13 running counter ownership gate failed.';
+end
+$$;
+\endif
+
+with changed as (update audit.ingestion_runs
+set status = 'succeeded'
+where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+returning 1) select count(*) from changed;
+
+select
+    status = 'succeeded'
+    and created_at <= started_at
+    and started_at <= completed_at
+    and artifacts_observed_count = 4
+    and artifacts_new_count = 1
+    and artifacts_reused_count = 1
+    and artifacts_revised_count = 1
+    and artifacts_failed_count = 1
+    and artifacts_observed_count = artifacts_new_count + artifacts_reused_count
+        + artifacts_revised_count + artifacts_failed_count
+    and error_code is null
+    and error_summary is null as pr13_success_aggregated
+from audit.ingestion_runs
+where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+\gset
+
+\if :pr13_success_aggregated
+\else
+\echo 'Succeeded run did not aggregate recovered attempt outcomes.'
+do $$
+begin
+    raise exception 'PR13 succeeded-run aggregation gate failed.';
+end
+$$;
+\endif
+
+insert into audit.ingestion_runs (
+    ingestion_run_id, source_id, source_definition_version, trigger_kind, git_sha
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000611',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'schedule', repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000612',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'backfill', repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000613',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'test', repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000620',
+        '00000000-0000-4000-8000-000000000312',
+        1, 'manual', repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000630',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'manual', repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000640',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'manual', repeat('1', 40)
+    );
+
+with changed as (update audit.ingestion_runs
+set status = 'running'
+where ingestion_run_id in (
+    '00000000-0000-4000-8000-000000000611',
+    '00000000-0000-4000-8000-000000000612',
+    '00000000-0000-4000-8000-000000000613',
+    '00000000-0000-4000-8000-000000000620',
+    '00000000-0000-4000-8000-000000000640'
+)
+returning 1) select count(*) from changed;
+
+insert into audit.ingestion_run_artifacts (
+    ingestion_run_id, source_artifact_id, observed_url, final_url, observed_at,
+    http_status_code, result, error_code, error_summary
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000611', null,
+        'https://example.test/retry.csv', 'https://example.test/retry.csv',
+        '2026-08-30T13:00:00Z', 503, 'failed',
+        'http_unavailable', 'Recovered transient response.'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000611',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/retry.csv', 'https://example.test/audit.csv',
+        '2026-08-30T13:00:01Z', 200, 'reused', null, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000612',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/audit.csv', 'https://example.test/audit.csv',
+        '2026-08-30T13:10:00Z', 200, 'reused', null, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000613',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/audit.csv', 'https://example.test/audit.csv',
+        '2026-08-30T13:20:00Z', 200, 'new', null, null
+    ),
+    (
+        '00000000-0000-4000-8000-000000000613', null,
+        'https://example.test/late.csv', null,
+        '2026-08-30T13:20:01Z', null, 'failed',
+        'transport_error', 'Connection ended before a response.'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000640',
+        '00000000-0000-4000-8000-000000000501',
+        'https://example.test/new.csv', 'https://example.test/audit.csv',
+        '2026-08-30T13:30:00Z', 200, 'new', null, null
+    );
+
+with changed as (update audit.ingestion_runs
+set status = 'no_change'
+where ingestion_run_id = '00000000-0000-4000-8000-000000000611'
+returning 1) select count(*) from changed;
+
+with changed as (update audit.ingestion_runs
+set status = 'succeeded'
+where ingestion_run_id = '00000000-0000-4000-8000-000000000612'
+returning 1) select count(*) from changed;
+
+with changed as (update audit.ingestion_runs
+set status = 'failed',
+    error_code = 'run_aborted',
+    error_summary = 'Run stopped after a persistent source failure.'
+where ingestion_run_id = '00000000-0000-4000-8000-000000000613'
+returning 1) select count(*) from changed;
+
+select
+    (
+        select status = 'no_change'
+            and artifacts_observed_count = 2
+            and artifacts_new_count = 0
+            and artifacts_reused_count = 1
+            and artifacts_revised_count = 0
+            and artifacts_failed_count = 1
+        from audit.ingestion_runs
+        where ingestion_run_id = '00000000-0000-4000-8000-000000000611'
+    )
+    and (
+        select status = 'succeeded'
+            and artifacts_observed_count = 1
+            and artifacts_new_count = 0
+            and artifacts_reused_count = 1
+            and artifacts_revised_count = 0
+            and artifacts_failed_count = 0
+        from audit.ingestion_runs
+        where ingestion_run_id = '00000000-0000-4000-8000-000000000612'
+    )
+    and (
+        select status = 'failed'
+            and artifacts_observed_count = 2
+            and artifacts_new_count = 1
+            and artifacts_failed_count = 1
+            and error_code = 'run_aborted'
+        from audit.ingestion_runs
+        where ingestion_run_id = '00000000-0000-4000-8000-000000000613'
+    ) as pr13_terminal_outcomes_valid
+\gset
+
+\if :pr13_terminal_outcomes_valid
+\else
+\echo 'PR13 terminal outcome semantics failed.'
+do $$
+begin
+    raise exception 'PR13 terminal outcome gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_runs
+            set status = 'running'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000610'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'terminal run was reopened';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_runs
+            set status = 'no_change'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000640'$statement$;
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'no-change run accepted a new artifact observation';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_runs
+            set status = 'failed'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000620'$statement$;
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'failed run without safe error was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_runs
+            set status = 'succeeded',
+                error_code = 'unexpected_error',
+                error_summary = 'This must be rejected.'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000620'$statement$;
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'nonfailed run accepted run-level error fields';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_runs
+            set status = 'succeeded'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000630'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'pending run skipped running state';
+    end if;
+end
+$$;
+
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, final_url,
+            observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            '00000000-0000-4000-8000-000000000501',
+            'https://example.test/cross-source.csv',
+            'https://example.test/cross-source.csv',
+            '2026-08-30T14:00:00Z', 'reused'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'cross-source artifact observation was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, final_url,
+            observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            '00000000-0000-4000-8000-000000000503',
+            'https://example.test/not-revised.csv',
+            'https://example.test/not-revised.csv',
+            '2026-08-30T14:00:01Z', 'revised'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'revised result without release lineage was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, final_url,
+            observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000640',
+            '00000000-0000-4000-8000-000000000502',
+            'https://example.test/revision-as-new.csv',
+            'https://example.test/revision-as-new.csv',
+            '2026-08-30T14:00:02Z', 'new'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'new result accepted a superseding release';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, observed_url, final_url, observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            'https://example.test/missing-artifact.csv',
+            'https://example.test/missing-artifact.csv',
+            '2026-08-30T14:00:03Z', 'reused'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'successful observation without artifact was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, observed_at,
+            result, error_code, error_summary
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            '00000000-0000-4000-8000-000000000503',
+            'https://example.test/failed-with-artifact.csv',
+            '2026-08-30T14:00:04Z', 'failed',
+            'transport_error', 'This shape is invalid.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'failed observation with artifact was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, observed_url, observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            'https://example.test/failed-without-error.csv',
+            '2026-08-30T14:00:05Z', 'failed'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'failed observation without safe error was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, final_url,
+            observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000620',
+            '00000000-0000-4000-8000-000000000503',
+            'https://example.test/invalid-result.csv',
+            'https://example.test/invalid-result.csv',
+            '2026-08-30T14:00:06Z', 'stored'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid artifact result was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, observed_url, observed_at, result,
+            error_code, error_summary
+        ) values (
+            '00000000-0000-4000-8000-000000000630',
+            'https://example.test/pending.csv',
+            '2026-08-30T14:00:07Z', 'failed',
+            'not_started', 'Parent has not started.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'artifact observation before running was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_run_artifacts (
+            ingestion_run_id, source_artifact_id, observed_url, final_url,
+            observed_at, result
+        ) values (
+            '00000000-0000-4000-8000-000000000612',
+            '00000000-0000-4000-8000-000000000501',
+            'https://example.test/terminal.csv',
+            'https://example.test/terminal.csv',
+            '2026-08-30T14:00:08Z', 'reused'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'artifact observation after terminal state was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.ingestion_run_artifacts
+            set observed_url = 'https://example.test/mutated.csv'
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000610'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'artifact observation update was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from audit.ingestion_run_artifacts
+            where ingestion_run_id = '00000000-0000-4000-8000-000000000610'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'artifact observation delete was accepted';
+    end if;
+end
+$$;
+
+insert into audit.ingestion_runs (
+    ingestion_run_id, source_id, source_definition_version, trigger_kind,
+    git_sha, restart_of_ingestion_run_id
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000614',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'manual', repeat('1', 40),
+        '00000000-0000-4000-8000-000000000613'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000615',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'schedule', repeat('1', 40),
+        '00000000-0000-4000-8000-000000000613'
+    );
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            git_sha, restart_of_ingestion_run_id
+        ) values (
+            '00000000-0000-4000-8000-000000000616',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', repeat('1', 40),
+            '00000000-0000-4000-8000-000000000612'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'restart from nonfailed run was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            git_sha, restart_of_ingestion_run_id
+        ) values (
+            '00000000-0000-4000-8000-000000000617',
+            '00000000-0000-4000-8000-000000000312',
+            1, 'manual', repeat('1', 40),
+            '00000000-0000-4000-8000-000000000613'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'cross-source restart was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.ingestion_runs (
+            ingestion_run_id, source_id, source_definition_version, trigger_kind,
+            git_sha, restart_of_ingestion_run_id
+        ) values (
+            '00000000-0000-4000-8000-000000000618',
+            '00000000-0000-4000-8000-000000000311',
+            1, 'manual', repeat('1', 40),
+            '00000000-0000-4000-8000-000000000618'
+        );
+    exception when raise_exception or check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'direct self restart was accepted';
+    end if;
+end
+$$;
+
+select count(*) = 2 as pr13_multiple_restart_children
+from audit.ingestion_runs
+where restart_of_ingestion_run_id = '00000000-0000-4000-8000-000000000613'
+\gset
+
+\if :pr13_multiple_restart_children
+\else
+\echo 'Multiple restart children were not preserved.'
+do $$
+begin
+    raise exception 'PR13 restart lineage gate failed.';
+end
+$$;
+\endif
+
+set local role service_role;
+
+insert into audit.ingestion_runs (
+    source_id, source_definition_version, trigger_kind, parameters,
+    parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, git_sha, restart_of_ingestion_run_id
+)
+values (
+    '00000000-0000-4000-8000-000000000311',
+    1, 'test', '{}'::jsonb, null, null, null, repeat('7', 40), null
+)
+returning ingestion_run_id as service_run_id
+\gset
+
+do $$
+declare
+    target_run_id uuid;
+    rejected boolean;
+begin
+    select ingestion_run_id into target_run_id
+    from audit.ingestion_runs
+    where git_sha = repeat('7', 40) and status = 'pending';
+
+    rejected := false;
+    begin
+        execute 'update audit.ingestion_runs set started_at = clock_timestamp() '
+            'where ingestion_run_id = $1' using target_run_id;
+    exception when insufficient_privilege then rejected := true;
+    end;
+    if not rejected then raise exception 'service role directly updated started_at';
+    end if;
+
+    rejected := false;
+    begin
+        execute 'update audit.ingestion_runs set artifacts_observed_count = 1, '
+            'artifacts_failed_count = 1 where ingestion_run_id = $1' using target_run_id;
+    exception when insufficient_privilege then rejected := true;
+    end;
+    if not rejected then raise exception 'service role directly updated counters';
+    end if;
+end
+$$;
+
+with changed as (update audit.ingestion_runs
+set status = 'running'
+where ingestion_run_id = :'service_run_id'::uuid
+returning 1) select count(*) from changed;
+
+insert into audit.ingestion_run_artifacts (
+    ingestion_run_id, source_artifact_id, observed_url, final_url, observed_at,
+    http_status_code, http_etag, http_last_modified, http_content_length,
+    result, error_code, error_summary
+)
+values (
+    :'service_run_id'::uuid, null,
+    'https://example.test/service-role.csv', 'https://example.test/service-role.csv',
+    '2026-08-30T15:00:00Z', 429, null, null, 0,
+    'failed', 'rate_limited', 'Transient rate limit was recovered.'
+);
+
+with changed as (update audit.ingestion_runs
+set status = 'no_change'
+where ingestion_run_id = :'service_run_id'::uuid
+returning 1) select count(*) from changed;
+
+reset role;
+
+select
+    status = 'no_change'
+    and created_at <= started_at
+    and started_at <= completed_at
+    and artifacts_observed_count = 1
+    and artifacts_new_count = 0
+    and artifacts_reused_count = 0
+    and artifacts_revised_count = 0
+    and artifacts_failed_count = 1 as pr13_service_role_contract
+from audit.ingestion_runs
+where ingestion_run_id = :'service_run_id'::uuid
+\gset
+
+\if :pr13_service_role_contract
+\else
+\echo 'Service-role lifecycle contract failed.'
+do $$
+begin
+    raise exception 'PR13 service-role lifecycle gate failed.';
+end
+$$;
+\endif
+
+select
+    (select count(*) = 4
+     from audit.ingestion_run_artifacts
+     where ingestion_run_id = '00000000-0000-4000-8000-000000000610')
+    and (select count(*) = 3
+         from audit.ingestion_run_artifacts
+         where ingestion_run_id = '00000000-0000-4000-8000-000000000610'
+           and observed_url = 'https://example.test/repeated.csv')
+    and (select count(*) = 2
+         from audit.ingestion_runs
+         where restart_of_ingestion_run_id = '00000000-0000-4000-8000-000000000613')
+    as pr13_behavior_passed
+\gset
+
+\if :pr13_behavior_passed
+\else
+\echo 'PR13 aggregate behavioral smoke failed.'
+do $$
+begin
+    raise exception 'PR13 aggregate behavioral gate failed.';
+end
+$$;
+\endif
+
 rollback;
 
 \if :pr11_behavior_passed
 \echo 'PR11 evidence catalog behavioral smoke passed.'
 \else
 \echo 'PR11 evidence catalog behavioral smoke failed.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 evidence catalog behavioral gate failed.';
+end
+$$;
 \endif
 
 select
@@ -1135,5 +2352,29 @@ select
 \echo 'PR11 smoke fixtures rolled back cleanly.'
 \else
 \echo 'PR11 smoke fixtures persisted unexpectedly.'
-\quit 1
+do $$
+begin
+    raise exception 'PR11 rollback cleanliness gate failed.';
+end
+$$;
 \endif
+
+
+select
+    not exists (select 1 from audit.ingestion_runs)
+    and not exists (select 1 from audit.ingestion_run_artifacts)
+    as pr13_rollback_passed
+\gset
+
+\if :pr13_rollback_passed
+\echo 'PR13 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR13 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR13 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+\echo 'Migration smoke completed successfully.'
