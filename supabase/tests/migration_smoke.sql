@@ -2643,17 +2643,30 @@ with pr14_extension_gate as (
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
 )
 select
-    pr14_extension_gate.valid
-    and pr14_inventory_gate.valid
-    and pr14_columns_gate.valid
-    and pr14_validity_gate.valid
-    and pr14_alias_normalization_gate.valid
-    and pr14_relationship_gate.valid
-    and pr14_exclusion_gate.valid
-    and pr14_defaults_gate.valid
-    and pr14_indexes_gate.valid
-    and pr14_access_state_gate.valid
-    and pr14_boundary_gate.valid as pr14_schema_passed
+    pr14_extension_gate.valid as pr14_extension_gate,
+    pr14_inventory_gate.valid as pr14_inventory_gate,
+    pr14_columns_gate.valid as pr14_columns_gate,
+    pr14_validity_gate.valid as pr14_validity_gate,
+    pr14_alias_normalization_gate.valid as pr14_alias_normalization_gate,
+    pr14_relationship_gate.valid as pr14_relationship_gate,
+    pr14_exclusion_gate.valid as pr14_exclusion_gate,
+    pr14_defaults_gate.valid as pr14_defaults_gate,
+    pr14_indexes_gate.valid as pr14_indexes_gate,
+    pr14_access_state_gate.valid as pr14_access_state_gate,
+    pr14_boundary_gate.valid as pr14_boundary_gate,
+    (
+        pr14_extension_gate.valid
+        and pr14_inventory_gate.valid
+        and pr14_columns_gate.valid
+        and pr14_validity_gate.valid
+        and pr14_alias_normalization_gate.valid
+        and pr14_relationship_gate.valid
+        and pr14_exclusion_gate.valid
+        and pr14_defaults_gate.valid
+        and pr14_indexes_gate.valid
+        and pr14_access_state_gate.valid
+        and pr14_boundary_gate.valid
+    ) as pr14_schema_passed
 from pr14_extension_gate
 cross join pr14_inventory_gate
 cross join pr14_columns_gate
@@ -2666,6 +2679,142 @@ cross join pr14_indexes_gate
 cross join pr14_access_state_gate
 cross join pr14_boundary_gate
 \gset
+
+\echo PR14 gate extension: :pr14_extension_gate
+\echo PR14 gate inventory: :pr14_inventory_gate
+\echo PR14 gate columns: :pr14_columns_gate
+\echo PR14 gate validity: :pr14_validity_gate
+\echo PR14 gate alias_normalization: :pr14_alias_normalization_gate
+\echo PR14 gate relationships: :pr14_relationship_gate
+\echo PR14 gate exclusions: :pr14_exclusion_gate
+\echo PR14 gate defaults: :pr14_defaults_gate
+\echo PR14 gate indexes: :pr14_indexes_gate
+\echo PR14 gate access_state: :pr14_access_state_gate
+\echo PR14 gate boundary: :pr14_boundary_gate
+\echo PR14 aggregate schema: :pr14_schema_passed
+
+\echo PR14 diagnostic btree_gist
+select
+    extension.extname,
+    namespace.nspname as extension_schema
+from pg_catalog.pg_extension extension
+join pg_catalog.pg_namespace namespace
+  on namespace.oid = extension.extnamespace
+where extension.extname = 'btree_gist';
+
+\echo PR14 diagnostic column counts
+select
+    actual.table_name,
+    count(*) as column_count
+from information_schema.columns actual
+where actual.table_schema = 'registry'
+  and actual.table_name in (
+      'institutions',
+      'institution_definition_versions',
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts',
+      'regulatory_concepts',
+      'regulatory_concept_scopes'
+  )
+group by actual.table_name
+order by actual.table_name;
+
+\echo PR14 diagnostic validity generation
+select
+    actual.table_name,
+    actual.udt_name,
+    actual.is_generated,
+    actual.generation_expression
+from information_schema.columns actual
+where actual.table_schema = 'registry'
+  and actual.column_name = 'validity'
+  and actual.table_name in (
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts'
+  )
+order by actual.table_name;
+
+\echo PR14 diagnostic relationship constraintdefs
+select
+    expected.constraint_name,
+    actual.contype::text as constraint_kind,
+    pg_catalog.pg_get_constraintdef(actual.oid) as constraint_definition
+from (values
+    ('institution_definition_versions_identity_key'),
+    ('regulatory_registrations_definition_institution_fkey'),
+    ('institution_aliases_definition_institution_fkey'),
+    ('institution_cohorts_definition_institution_fkey'),
+    ('regulatory_registrations_regulator_fkey'),
+    ('institution_aliases_source_fkey')
+) as expected(constraint_name)
+left join pg_catalog.pg_constraint actual
+  on actual.conname = expected.constraint_name
+order by expected.constraint_name;
+
+\echo PR14 diagnostic non-constraint indexes
+select
+    table_relation.relname as table_name,
+    index_relation.relname as index_name
+from pg_catalog.pg_index index_definition
+join pg_catalog.pg_class index_relation
+  on index_relation.oid = index_definition.indexrelid
+join pg_catalog.pg_class table_relation
+  on table_relation.oid = index_definition.indrelid
+join pg_catalog.pg_namespace namespace
+  on namespace.oid = table_relation.relnamespace
+where namespace.nspname = 'registry'
+  and table_relation.relname in (
+      'institutions',
+      'institution_definition_versions',
+      'regulatory_registrations',
+      'institution_aliases',
+      'institution_cohorts',
+      'regulatory_concepts',
+      'regulatory_concept_scopes'
+  )
+  and not exists (
+      select 1
+      from pg_catalog.pg_constraint backing_constraint
+      where backing_constraint.conindid = index_definition.indexrelid
+  )
+order by table_relation.relname, index_relation.relname;
+
+\echo PR14 diagnostic service_role privileges
+select
+    table_name,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'SELECT'
+    ) as select_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'INSERT'
+    ) as insert_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'UPDATE'
+    ) as update_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'DELETE'
+    ) as delete_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'TRUNCATE'
+    ) as truncate_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'REFERENCES'
+    ) as references_priv,
+    pg_catalog.has_table_privilege(
+        'service_role', format('registry.%I', table_name), 'TRIGGER'
+    ) as trigger_priv
+from unnest(array[
+    'institutions',
+    'institution_definition_versions',
+    'regulatory_registrations',
+    'institution_aliases',
+    'institution_cohorts',
+    'regulatory_concepts',
+    'regulatory_concept_scopes'
+]) as table_name
+order by table_name;
 
 \if :pr14_schema_passed
 \echo 'PR14 institution identity schema contract passed.'
