@@ -744,11 +744,14 @@ with evidence_columns_gate as (
         )
         and (
             select
-                count(*) = 3
+                count(*) = 6
                 and bool_and((audit_relation.relname, audit_relation.relkind::text) in (
                     ('ingestion_runs', 'r'),
                     ('ingestion_run_artifacts', 'r'),
-                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+                    ('review_decisions', 'r'),
+                    ('review_decisions_review_decision_id_seq', 'S'),
+                    ('effective_review_decisions', 'v')
                 ))
             from pg_catalog.pg_class audit_relation
             join pg_catalog.pg_namespace audit_namespace
@@ -2719,7 +2722,7 @@ with pr14_extension_gate as (
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is null
         and pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('audit.review_decisions') is null
+        and pg_catalog.to_regclass('audit.review_decisions') is not null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
 )
 select

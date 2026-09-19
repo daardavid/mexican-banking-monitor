@@ -141,22 +141,45 @@ def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations()
     assert "('reported_facts', 'r')" in normalized
     assert "('reported_facts_reported_fact_id_seq', 's')" in normalized
 
-    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
-        "), legacy_table_gate as (", 1
-    )[0]
-    assert "count(*) = 6" in audit_boundary
-    for expected_relation in (
+    expected_audit_relations = (
         "('ingestion_runs', 'r')",
         "('ingestion_run_artifacts', 'r')",
         "('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 's')",
         "('review_decisions', 'r')",
         "('review_decisions_review_decision_id_seq', 's')",
         "('effective_review_decisions', 'v')",
-    ):
+    )
+    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    assert "count(*) = 6" in audit_boundary
+    for expected_relation in expected_audit_relations:
         assert expected_relation in audit_boundary
     assert "to_regclass('audit.quality_issues') is null" in audit_boundary
     assert "bool_and((relation.relname, relation.relkind::text) in" in audit_boundary
     assert "where namespace.nspname = 'audit'" in audit_boundary
+
+    evidence_boundary = normalized.split("), evidence_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    nested_audit_inventory = evidence_boundary.split(
+        "from pg_catalog.pg_class audit_relation", 1
+    )[0].rsplit("select", 1)[1]
+    assert "count(*) = 6" in nested_audit_inventory
+    assert "count(*) = 3" not in nested_audit_inventory
+    for expected_relation in expected_audit_relations:
+        assert expected_relation in nested_audit_inventory
+    assert "count(*) = 5" in evidence_boundary
+    assert "to_regclass('public.regulatory_bank_metrics_v1') is null" in evidence_boundary
+
+    pr14_boundary = normalized.split("), pr14_boundary_gate as (", 1)[1].split(
+        ") select", 1
+    )[0]
+    assert "to_regclass('audit.review_decisions') is not null" in pr14_boundary
+    assert re.search(
+        r"to_regclass\('audit.review_decisions'\) is null\b", pr14_boundary
+    ) is None
+    assert "to_regclass('audit.quality_issues') is null" in pr14_boundary
     assert "do $ declare" not in normalized
 
 
