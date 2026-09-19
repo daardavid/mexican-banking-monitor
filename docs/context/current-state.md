@@ -53,8 +53,9 @@ not a changelog and does not make the roadmap executable.
   pairings. No real institution or concept definitions are seeded. Runtime `service_role` is
   SELECT-only. All seven production tables are empty.
 - This feature branch implements PR15 `reported.reported_facts`: an append-only private fact
-  table with composite identity/provenance FKs, database-computed SHA-256 hashes, and linear
-  supersession. It is not merged and not deployed. Production does not contain this table.
+  table with composite identity/provenance FKs, database-computed SHA-256 hashes, and
+  append-only revision lineage supporting multiple observed successors. It is not merged and
+  not deployed. Production does not contain this table.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.

@@ -229,6 +229,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         current_state
     )
     assert "PR15a remains blocked." in current_state
+    assert "multiple observed successors" in current_state
+    assert "linear supersession" not in current_state
     assert (
         "PR14 institution identity and regulatory taxonomy schema is merged, deployed, and "
         "verified\n  in production."
