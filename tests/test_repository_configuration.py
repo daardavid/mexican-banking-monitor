@@ -155,6 +155,7 @@ def test_migration_smoke_is_present_and_transaction_safe() -> None:
         "institution_cohorts",
         "regulatory_concepts",
         "regulatory_concept_scopes",
+        "reported_facts",
         "btree_gist",
         "gen_random_uuid()",
         "access_gate",

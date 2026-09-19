@@ -31,6 +31,7 @@ PR13_MIGRATION_SHA256 = (
     "ca882b04bb36a646afd5aefae9a76ada34e657070ce355e81425e84b28eaac2b"
 )
 PR14_MIGRATION_NAME = "20260916202900_institution_identity_schema.sql"
+PR15_MIGRATION_NAME = "20260919143000_reported_fact_schema.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -82,6 +83,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
 
     pr13_content = migrations[3].path.read_bytes().replace(b"\r\n", b"\n")
     pr14_content = migrations[4].path.read_bytes().replace(b"\r\n", b"\n")
+    pr15_content = migrations[5].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -89,13 +91,16 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
         PR11_MIGRATION_NAME,
         PR13_MIGRATION_NAME,
         PR14_MIGRATION_NAME,
+        PR15_MIGRATION_NAME,
     ]
+    assert len(migrations) == 6
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
     assert hashlib.sha256(pr11_content).hexdigest() == PR11_MIGRATION_SHA256
     assert hashlib.sha256(pr13_content).hexdigest() == PR13_MIGRATION_SHA256
     assert "create table registry.institutions" in pr14_content.decode("utf-8")
+    assert "create table reported.reported_facts" in pr15_content.decode("utf-8")
 
 
 def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> None:
@@ -118,7 +123,7 @@ def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> 
         assert "raise exception" in failure_branch
 
     assert normalized.count(
-        "where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')"
+        "where namespace.nspname in ('semantic', 'metrics', 'serving')"
     ) >= 1
     assert (
         "where namespace.nspname in "
@@ -128,6 +133,8 @@ def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> 
         "where later_namespace.nspname in "
         "('reported', 'semantic', 'metrics', 'audit', 'serving')"
     ) not in normalized
+    assert "('reported_facts', 'r')" in normalized
+    assert "('reported_facts_reported_fact_id_seq', 's')" in normalized
 
     audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
         "), legacy_table_gate as (", 1
@@ -638,6 +645,131 @@ def test_pr14_lookup_indexes_and_select_only_grants() -> None:
     assert "grant truncate" not in normalized
     assert "grant references" not in normalized
     assert "grant trigger" not in normalized
+
+
+def test_pr15_migration_is_additive_private_unseeded_and_in_scope() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR15_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    assert normalized.count("create table reported.") == 1
+    assert "create table reported.reported_facts (" in normalized
+    assert "alter table reported.reported_facts enable row level security;" in normalized
+    assert "set local search_path" in normalized
+    assert "set search_path =" not in normalized.replace("set local search_path", "")
+
+    assert forbidden_operations(migration_text) == []
+    assert "insert into" not in normalized
+    assert "create policy" not in normalized
+    assert "security definer" not in normalized
+    assert "create role " not in normalized
+    assert "alter role " not in normalized
+    assert "cascade" not in normalized
+    assert "on delete" not in normalized
+    assert "on update" not in normalized
+    assert "drop " not in normalized
+    assert "truncate" not in normalized
+    assert "core." not in normalized
+    assert "ops." not in normalized
+    assert "analytics." not in normalized
+    assert "semantic." not in normalized
+    assert "metrics." not in normalized
+    assert "serving." not in normalized
+    assert "public.regulatory_bank_metrics_v1" not in normalized
+    assert "review_decisions" not in normalized
+    assert "quality_issues" not in normalized
+    assert "current_observed" not in normalized
+    assert "current_publishable" not in normalized
+    assert "float" not in normalized
+    assert "double precision" not in normalized
+    assert " real " not in f" {normalized} "
+    assert "numeric(38,18)" not in normalized
+    assert "text::bytea" not in normalized.replace(" ", "")
+    assert "::bytea" not in normalized
+    assert "generated always as (encode" not in normalized
+    assert "generated always as identity primary key" in normalized
+    assert "locator_hash text not null" in normalized
+    assert "fact_key_hash text not null" in normalized
+    assert "convert_to(" in normalized
+    assert "'utf8'" in normalized
+    assert "sha256(" in normalized
+    assert "new.locator_hash :=" in normalized
+    assert "new.fact_key_hash :=" in normalized
+    assert "unique (predecessor_reported_fact_id)" not in normalized
+    assert "unique (ingestion_run_id, source_artifact_id)" not in normalized
+    assert "methodology_correction" not in normalized.split(
+        "constraint reported_facts_supersession_reason_valid", 1
+    )[1].split("constraint reported_facts_supersession_pair_valid", 1)[0]
+
+
+def test_pr15_reported_facts_shape_hashes_and_narrow_grants() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR15_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    table_definition = normalized.split(
+        "create table reported.reported_facts (", 1
+    )[1].split("create function reported.prepare_reported_fact_insert()", 1)[0]
+
+    assert "parsed_value numeric not null" in table_definition
+    assert "parsed_value <> 'nan'::numeric" in table_definition
+    assert "parsed_value <> 'infinity'::numeric" in table_definition
+    assert "parsed_value <> '-infinity'::numeric" in table_definition
+    assert "period_kind in ('instant', 'duration')" in table_definition
+    assert "locator_kind in ('excel', 'csv', 'json', 'pdf')" in table_definition
+    assert "references registry.measurement_units (unit_code)" in table_definition
+    assert "unique (source_id, regulator_id)" in normalized
+    assert "unique (source_release_id, source_id)" in normalized
+    assert "unique (source_artifact_id, source_release_id)" in normalized
+    assert "unique (regulatory_registration_id, regulator_id)" in normalized
+    assert "unique (regulatory_concept_id, source_id)" in normalized
+    assert "ingestion_runs_fact_provenance_key" in normalized
+    assert (
+        "unique ( source_artifact_id, locator_hash, source_definition_version, "
+        "parser_implementation_key, parser_implementation_version, fact_key_hash )"
+    ) in table_definition
+    assert "ingestion_run_id" not in table_definition.split(
+        "constraint reported_facts_extraction_identity_key", 1
+    )[1].split("constraint reported_facts_source_definition_version_positive", 1)[0]
+    assert "deferrable" not in normalized
+    assert "create index using gin" not in normalized
+    assert "gin (" not in normalized
+
+    expected_indexes = (
+        "reported_facts_predecessor_idx",
+        "reported_facts_logical_observed_idx",
+        "reported_facts_registration_lookup_idx",
+    )
+    assert normalized.count("create index ") == len(expected_indexes)
+    for index_name in expected_indexes:
+        assert f"create index {index_name}" in normalized
+    assert "where predecessor_reported_fact_id is not null" in normalized
+
+    assert "grant select on reported.reported_facts to service_role;" in normalized
+    assert "grant insert (" in normalized
+    granted_columns = {
+        column.strip()
+        for column in normalized.split("grant insert (", 1)[1]
+        .split(") on reported.reported_facts to service_role;", 1)[0]
+        .split(",")
+        if column.strip()
+    }
+    assert "locator_hash" not in granted_columns
+    assert "fact_key_hash" not in granted_columns
+    assert "reported_fact_id" not in granted_columns
+    assert "predecessor_reported_fact_id" in granted_columns
+    assert "grant usage on sequence reported.reported_facts_reported_fact_id_seq" in (
+        normalized
+    )
+    assert "grant update" not in normalized
+    assert "grant delete" not in normalized
+    assert "grant truncate" not in normalized
+    assert "grant references" not in normalized
+    assert "grant trigger" not in normalized
+    assert "before insert on reported.reported_facts" in normalized
+    assert "before update or delete on reported.reported_facts" in normalized
+    assert "reported facts are append-only" in normalized
 
 
 @pytest.mark.parametrize(

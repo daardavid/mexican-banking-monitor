@@ -27,7 +27,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('registry', 'institution_aliases', 'r'),
         ('registry', 'institution_cohorts', 'r'),
         ('registry', 'regulatory_concepts', 'r'),
-        ('registry', 'regulatory_concept_scopes', 'r')
+        ('registry', 'regulatory_concept_scopes', 'r'),
+        ('reported', 'reported_facts', 'r'),
+        ('reported', 'reported_facts_reported_fact_id_seq', 'S')
 )
 select
     format('%I.%I', expected.schema_name, expected.relation_name) as relation_name,
@@ -66,7 +68,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('registry', 'institution_aliases', 'r'),
         ('registry', 'institution_cohorts', 'r'),
         ('registry', 'regulatory_concepts', 'r'),
-        ('registry', 'regulatory_concept_scopes', 'r')
+        ('registry', 'regulatory_concept_scopes', 'r'),
+        ('reported', 'reported_facts', 'r'),
+        ('reported', 'reported_facts_reported_fact_id_seq', 'S')
 ), relation_gate as (
     select bool_and(actual.oid is not null and actual.relkind = expected.expected_kind::"char")
         as valid
@@ -291,7 +295,20 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             from pg_catalog.pg_class relation
             join pg_catalog.pg_namespace namespace
               on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
+            where namespace.nspname in ('semantic', 'metrics', 'serving')
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 2
+                and bool_and((relation.relname, relation.relkind::text) in (
+                    ('reported_facts', 'r'),
+                    ('reported_facts_reported_fact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'reported'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and (
@@ -451,9 +468,9 @@ with evidence_columns_gate as (
      and actual.is_nullable = expected.is_nullable
 ), evidence_constraints_gate as (
     select
-        count(*) = 46
+        count(*) = 49
         and (
-            select count(*) = 46
+            select count(*) = 49
             from pg_catalog.pg_constraint all_constraints
             join pg_catalog.pg_class constrained_relation
               on constrained_relation.oid = all_constraints.conrelid
@@ -476,6 +493,7 @@ with evidence_columns_gate as (
         ('regulators', 'regulators_country_code', 'c'),
         ('sources', 'sources_pkey', 'p'),
         ('sources', 'sources_source_code_key', 'u'),
+        ('sources', 'sources_id_regulator_key', 'u'),
         ('sources', 'sources_regulator_fkey', 'f'),
         ('sources', 'sources_source_code_identifier', 'c'),
         ('source_definition_versions', 'source_definition_versions_pkey', 'p'),
@@ -500,6 +518,7 @@ with evidence_columns_gate as (
         ('source_releases', 'source_releases_source_fkey', 'f'),
         ('source_releases', 'source_releases_source_family_identity_key', 'u'),
         ('source_releases', 'source_releases_lineage_target_key', 'u'),
+        ('source_releases', 'source_releases_id_source_key', 'u'),
         ('source_releases', 'source_releases_supersedes_fkey', 'f'),
         ('source_releases', 'source_releases_release_family_key_not_blank', 'c'),
         ('source_releases', 'source_releases_revision_not_blank', 'c'),
@@ -509,6 +528,7 @@ with evidence_columns_gate as (
         ('source_releases', 'source_releases_no_direct_self_supersession', 'c'),
         ('source_artifacts', 'source_artifacts_pkey', 'p'),
         ('source_artifacts', 'source_artifacts_release_fkey', 'f'),
+        ('source_artifacts', 'source_artifacts_id_release_key', 'u'),
         ('source_artifacts', 'source_artifacts_release_role_sha256_key', 'u'),
         ('source_artifacts', 'source_artifacts_filename_not_blank', 'c'),
         ('source_artifacts', 'source_artifacts_original_url_not_blank', 'c'),
@@ -530,10 +550,12 @@ with evidence_columns_gate as (
      and actual.conname = expected.constraint_name
      and actual.contype = expected.constraint_kind::"char"
 ), evidence_relationship_gate as (
-    select count(*) = 7 as valid
+    select count(*) = 10 as valid
     from (values
         ('sources_regulator_fkey', 'f',
             'FOREIGN KEY (regulator_id) REFERENCES evidence.regulators(regulator_id)'),
+        ('sources_id_regulator_key', 'u',
+            'UNIQUE (source_id, regulator_id)'),
         ('source_definition_versions_source_fkey', 'f',
             'FOREIGN KEY (source_id) REFERENCES evidence.sources(source_id)'),
         ('source_definition_versions_source_definition_key', 'u',
@@ -542,9 +564,13 @@ with evidence_columns_gate as (
             'FOREIGN KEY (source_id) REFERENCES evidence.sources(source_id)'),
         ('source_releases_source_family_identity_key', 'u',
             'UNIQUE (source_id, release_family_key, release_identity_hash)'),
+        ('source_releases_id_source_key', 'u',
+            'UNIQUE (source_release_id, source_id)'),
         ('source_releases_supersedes_fkey', 'f',
             'FOREIGN KEY (supersedes_source_release_id, source_id, release_family_key) '
             'REFERENCES evidence.source_releases(source_release_id, source_id, release_family_key)'),
+        ('source_artifacts_id_release_key', 'u',
+            'UNIQUE (source_artifact_id, source_release_id)'),
         ('source_artifacts_release_role_sha256_key', 'u',
             'UNIQUE (source_release_id, artifact_role, sha256)')
     ) as expected(constraint_name, constraint_kind, constraint_definition)
@@ -691,8 +717,21 @@ with evidence_columns_gate as (
             from pg_catalog.pg_class later_relation
             join pg_catalog.pg_namespace later_namespace
               on later_namespace.oid = later_relation.relnamespace
-            where later_namespace.nspname in ('reported', 'semantic', 'metrics', 'serving')
+            where later_namespace.nspname in ('semantic', 'metrics', 'serving')
               and later_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 2
+                and bool_and((reported_relation.relname, reported_relation.relkind::text) in (
+                    ('reported_facts', 'r'),
+                    ('reported_facts_reported_fact_id_seq', 'S')
+                ))
+            from pg_catalog.pg_class reported_relation
+            join pg_catalog.pg_namespace reported_namespace
+              on reported_namespace.oid = reported_relation.relnamespace
+            where reported_namespace.nspname = 'reported'
+              and reported_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and (
             select
@@ -2499,7 +2538,7 @@ with pr14_extension_gate as (
       and actual.table_name = 'institution_aliases'
       and actual.column_name = 'normalized_alias'
 ), pr14_relationship_gate as (
-    select count(*) = 6 as valid
+    select count(*) = 8 as valid
     from (values
         ('institution_definition_versions_identity_key', 'u',
             'UNIQUE (institution_definition_version_id, institution_id)'),
@@ -2514,8 +2553,12 @@ with pr14_extension_gate as (
             'REFERENCES registry.institution_definition_versions(institution_definition_version_id, institution_id)'),
         ('regulatory_registrations_regulator_fkey', 'f',
             'FOREIGN KEY (regulator_id) REFERENCES evidence.regulators(regulator_id)'),
+        ('regulatory_registrations_id_regulator_key', 'u',
+            'UNIQUE (regulatory_registration_id, regulator_id)'),
         ('institution_aliases_source_fkey', 'f',
-            'FOREIGN KEY (source_id) REFERENCES evidence.sources(source_id)')
+            'FOREIGN KEY (source_id) REFERENCES evidence.sources(source_id)'),
+        ('regulatory_concepts_id_source_key', 'u',
+            'UNIQUE (regulatory_concept_id, source_id)')
     ) as expected(constraint_name, constraint_kind, constraint_definition)
     join pg_catalog.pg_constraint actual
       on actual.conname = expected.constraint_name
@@ -2659,7 +2702,7 @@ with pr14_extension_gate as (
       )
 ), pr14_boundary_gate as (
     select
-        pg_catalog.to_regclass('reported.reported_facts') is null
+        pg_catalog.to_regclass('reported.reported_facts') is not null
         and pg_catalog.to_regclass('semantic.canonical_concepts') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is null
@@ -2772,7 +2815,9 @@ from (values
     ('institution_aliases_definition_institution_fkey'),
     ('institution_cohorts_definition_institution_fkey'),
     ('regulatory_registrations_regulator_fkey'),
-    ('institution_aliases_source_fkey')
+    ('regulatory_registrations_id_regulator_key'),
+    ('institution_aliases_source_fkey'),
+    ('regulatory_concepts_id_source_key')
 ) as expected(constraint_name)
 left join pg_catalog.pg_constraint actual
   on actual.conname = expected.constraint_name
@@ -3393,7 +3438,1747 @@ end
 $$;
 \endif
 
-rollback;
+with pr15_columns_gate as (
+    select
+        count(*) = 28
+        and (
+            select count(*) = 28
+            from information_schema.columns
+            where table_schema = 'reported'
+              and table_name = 'reported_facts'
+        )
+        and (
+            select bool_and(actual.is_generated = 'NEVER')
+            from information_schema.columns actual
+            where actual.table_schema = 'reported'
+              and actual.table_name = 'reported_facts'
+              and actual.column_name in ('locator_hash', 'fact_key_hash')
+        ) as valid
+    from (values
+        ('reported_fact_id', 'bigint', 'NO'),
+        ('regulatory_registration_id', 'uuid', 'NO'),
+        ('regulator_id', 'uuid', 'NO'),
+        ('regulatory_concept_id', 'uuid', 'NO'),
+        ('source_id', 'uuid', 'NO'),
+        ('reporting_scope_id', 'uuid', 'NO'),
+        ('source_artifact_id', 'uuid', 'NO'),
+        ('source_release_id', 'uuid', 'NO'),
+        ('ingestion_run_id', 'uuid', 'NO'),
+        ('source_definition_version', 'integer', 'NO'),
+        ('parser_implementation_key', 'text', 'NO'),
+        ('parser_implementation_version', 'text', 'NO'),
+        ('identity_definition_hash', 'text', 'NO'),
+        ('period_kind', 'text', 'NO'),
+        ('period_start', 'date', 'YES'),
+        ('period_end', 'date', 'NO'),
+        ('unit_code', 'text', 'NO'),
+        ('dimensions', 'jsonb', 'NO'),
+        ('raw_value', 'text', 'NO'),
+        ('parsed_value', 'numeric', 'NO'),
+        ('raw_label', 'text', 'YES'),
+        ('locator_kind', 'text', 'NO'),
+        ('source_locator', 'jsonb', 'NO'),
+        ('locator_hash', 'text', 'NO'),
+        ('fact_key_hash', 'text', 'NO'),
+        ('first_observed_at', 'timestamp with time zone', 'NO'),
+        ('predecessor_reported_fact_id', 'bigint', 'YES'),
+        ('supersession_reason', 'text', 'YES')
+    ) as expected(column_name, data_type, is_nullable)
+    join information_schema.columns actual
+      on actual.table_schema = 'reported'
+     and actual.table_name = 'reported_facts'
+     and actual.column_name = expected.column_name
+     and actual.data_type = expected.data_type
+     and actual.is_nullable = expected.is_nullable
+), pr15_identity_gate as (
+    select
+        actual.is_identity = 'YES'
+        and actual.identity_generation = 'ALWAYS'
+        and actual.column_default is null as valid
+    from information_schema.columns actual
+    where actual.table_schema = 'reported'
+      and actual.table_name = 'reported_facts'
+      and actual.column_name = 'reported_fact_id'
+), pr15_relationship_gate as (
+    select count(*) = 16 as valid
+    from (values
+        ('sources_id_regulator_key', 'u',
+            'UNIQUE (source_id, regulator_id)'),
+        ('source_releases_id_source_key', 'u',
+            'UNIQUE (source_release_id, source_id)'),
+        ('source_artifacts_id_release_key', 'u',
+            'UNIQUE (source_artifact_id, source_release_id)'),
+        ('regulatory_registrations_id_regulator_key', 'u',
+            'UNIQUE (regulatory_registration_id, regulator_id)'),
+        ('regulatory_concepts_id_source_key', 'u',
+            'UNIQUE (regulatory_concept_id, source_id)'),
+        ('ingestion_runs_fact_provenance_key', 'u',
+            'UNIQUE (ingestion_run_id, source_id, source_definition_version, parser_implementation_key, parser_implementation_version, identity_definition_hash)'),
+        ('reported_facts_concept_scope_fkey', 'f',
+            'FOREIGN KEY (regulatory_concept_id, reporting_scope_id) REFERENCES registry.regulatory_concept_scopes(regulatory_concept_id, reporting_scope_id)'),
+        ('reported_facts_concept_source_fkey', 'f',
+            'FOREIGN KEY (regulatory_concept_id, source_id) REFERENCES registry.regulatory_concepts(regulatory_concept_id, source_id)'),
+        ('reported_facts_registration_regulator_fkey', 'f',
+            'FOREIGN KEY (regulatory_registration_id, regulator_id) REFERENCES registry.regulatory_registrations(regulatory_registration_id, regulator_id)'),
+        ('reported_facts_source_regulator_fkey', 'f',
+            'FOREIGN KEY (source_id, regulator_id) REFERENCES evidence.sources(source_id, regulator_id)'),
+        ('reported_facts_artifact_release_fkey', 'f',
+            'FOREIGN KEY (source_artifact_id, source_release_id) REFERENCES evidence.source_artifacts(source_artifact_id, source_release_id)'),
+        ('reported_facts_release_source_fkey', 'f',
+            'FOREIGN KEY (source_release_id, source_id) REFERENCES evidence.source_releases(source_release_id, source_id)'),
+        ('reported_facts_run_provenance_fkey', 'f',
+            'FOREIGN KEY (ingestion_run_id, source_id, source_definition_version, parser_implementation_key, parser_implementation_version, identity_definition_hash) REFERENCES audit.ingestion_runs(ingestion_run_id, source_id, source_definition_version, parser_implementation_key, parser_implementation_version, identity_definition_hash)'),
+        ('reported_facts_unit_fkey', 'f',
+            'FOREIGN KEY (unit_code) REFERENCES registry.measurement_units(unit_code)'),
+        ('reported_facts_predecessor_fkey', 'f',
+            'FOREIGN KEY (predecessor_reported_fact_id) REFERENCES reported.reported_facts(reported_fact_id)'),
+        ('reported_facts_extraction_identity_key', 'u',
+            'UNIQUE (source_artifact_id, locator_hash, source_definition_version, parser_implementation_key, parser_implementation_version, fact_key_hash)')
+    ) as expected(constraint_name, constraint_kind, constraint_definition)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = expected.constraint_kind::"char"
+     and pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
+), pr15_check_gate as (
+    select
+        count(*) = 17
+        and not exists (
+            select 1
+            from pg_catalog.pg_constraint
+            where conrelid = 'reported.reported_facts'::regclass
+              and contype = 'u'
+              and pg_catalog.pg_get_constraintdef(oid) like '%predecessor_reported_fact_id%'
+        ) as valid
+    from (values
+        ('reported_facts_source_definition_version_positive'),
+        ('reported_facts_parser_key_valid'),
+        ('reported_facts_parser_version_valid'),
+        ('reported_facts_identity_definition_hash_sha256'),
+        ('reported_facts_period_kind_valid'),
+        ('reported_facts_period_bounds_valid'),
+        ('reported_facts_dimensions_object'),
+        ('reported_facts_raw_value_not_blank'),
+        ('reported_facts_parsed_value_finite'),
+        ('reported_facts_raw_label_not_blank'),
+        ('reported_facts_locator_kind_valid'),
+        ('reported_facts_source_locator_object'),
+        ('reported_facts_locator_hash_sha256'),
+        ('reported_facts_fact_key_hash_sha256'),
+        ('reported_facts_supersession_reason_valid'),
+        ('reported_facts_supersession_pair_valid'),
+        ('reported_facts_no_direct_self_predecessor')
+    ) as expected(constraint_name)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = 'c'
+     and actual.conrelid = 'reported.reported_facts'::regclass
+), pr15_index_gate as (
+    select
+        count(*) = 3
+        and bool_and(index_relation.relname in (
+            'reported_facts_predecessor_idx',
+            'reported_facts_logical_observed_idx',
+            'reported_facts_registration_lookup_idx'
+        ))
+        and bool_and(not index_definition.indisunique)
+        and (
+            select not index_definition.indisunique
+                and index_definition.indpred is not null
+            from pg_catalog.pg_class index_relation
+            join pg_catalog.pg_index index_definition
+              on index_definition.indexrelid = index_relation.oid
+            where index_relation.relname = 'reported_facts_predecessor_idx'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class index_relation
+            join pg_catalog.pg_index index_definition
+              on index_definition.indexrelid = index_relation.oid
+            join pg_catalog.pg_am access_method
+              on access_method.oid = index_relation.relam
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = index_relation.relnamespace
+            where namespace.nspname = 'reported'
+              and access_method.amname = 'gin'
+        ) as valid
+    from pg_catalog.pg_index index_definition
+    join pg_catalog.pg_class index_relation
+      on index_relation.oid = index_definition.indexrelid
+    join pg_catalog.pg_class table_relation
+      on table_relation.oid = index_definition.indrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = table_relation.relnamespace
+    where namespace.nspname = 'reported'
+      and table_relation.relname = 'reported_facts'
+      and not exists (
+          select 1
+          from pg_catalog.pg_constraint backing_constraint
+          where backing_constraint.conindid = index_definition.indexrelid
+      )
+), pr15_object_gate as (
+    select
+        (
+            select count(*) = 2 and bool_and(not trigger.tgisinternal)
+            from pg_catalog.pg_trigger trigger
+            join pg_catalog.pg_class relation on relation.oid = trigger.tgrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'reported'
+              and relation.relname = 'reported_facts'
+              and not trigger.tgisinternal
+              and trigger.tgname in (
+                  'reported_facts_prepare_insert',
+                  'reported_facts_append_only'
+              )
+        )
+        and (
+            select count(*) = 2
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'reported'
+              and function.proname in (
+                  'prepare_reported_fact_insert',
+                  'reject_reported_fact_mutation'
+              )
+              and not function.prosecdef
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'reported'
+              and function.prosecdef
+        ) as valid
+), pr15_access_gate as (
+    select
+        relation.relrowsecurity
+        and not exists (
+            select 1 from pg_catalog.pg_policies where schemaname = 'reported'
+        )
+        and not exists (select 1 from reported.reported_facts)
+        and pg_catalog.has_table_privilege(
+            'service_role', 'reported.reported_facts', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role', 'reported.reported_facts',
+            'UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and pg_catalog.has_column_privilege(
+            'service_role', 'reported.reported_facts', 'raw_value', 'INSERT'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'reported.reported_facts', 'locator_hash', 'INSERT'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'reported.reported_facts', 'fact_key_hash', 'INSERT'
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'reported.reported_facts', 'reported_fact_id', 'INSERT'
+        )
+        and pg_catalog.has_sequence_privilege(
+            'service_role', 'reported.reported_facts_reported_fact_id_seq', 'USAGE'
+        )
+        and not pg_catalog.has_sequence_privilege(
+            'service_role', 'reported.reported_facts_reported_fact_id_seq',
+            'SELECT, UPDATE'
+        )
+        and (
+            select bool_and(not pg_catalog.has_table_privilege(
+                role_name,
+                'reported.reported_facts',
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class public_relation
+            join pg_catalog.pg_namespace public_namespace
+              on public_namespace.oid = public_relation.relnamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(
+                    public_relation.relacl,
+                    acldefault('r', public_relation.relowner)
+                )
+            ) as table_acl
+            where public_namespace.nspname = 'reported'
+              and public_relation.relname = 'reported_facts'
+              and table_acl.grantee = 0
+        )
+        and (
+            select bool_and(not pg_catalog.has_function_privilege(
+                role_name,
+                function_signature,
+                'EXECUTE'
+            ))
+            from unnest(array['anon', 'authenticated', 'service_role']) as role_name
+            cross join unnest(array[
+                'reported.prepare_reported_fact_insert()',
+                'reported.reject_reported_fact_mutation()'
+            ]) as function_signature
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(function.proacl, acldefault('f', function.proowner))
+            ) as function_acl
+            where namespace.nspname = 'reported'
+              and function.proname in (
+                  'prepare_reported_fact_insert',
+                  'reject_reported_fact_mutation'
+              )
+              and function_acl.grantee = 0
+        ) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'reported'
+      and relation.relname = 'reported_facts'
+), pr15_boundary_gate as (
+    select
+        pg_catalog.to_regclass('audit.review_decisions') is null
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('serving.current_observed_facts') is null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('metrics.metric_definitions') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
+)
+select
+    pr15_columns_gate.valid as pr15_columns_gate,
+    pr15_identity_gate.valid as pr15_identity_gate,
+    pr15_relationship_gate.valid as pr15_relationship_gate,
+    pr15_check_gate.valid as pr15_check_gate,
+    pr15_index_gate.valid as pr15_index_gate,
+    pr15_object_gate.valid as pr15_object_gate,
+    pr15_access_gate.valid as pr15_access_gate,
+    pr15_boundary_gate.valid as pr15_boundary_gate,
+    (
+        pr15_columns_gate.valid
+        and pr15_identity_gate.valid
+        and pr15_relationship_gate.valid
+        and pr15_check_gate.valid
+        and pr15_index_gate.valid
+        and pr15_object_gate.valid
+        and pr15_access_gate.valid
+        and pr15_boundary_gate.valid
+    ) as pr15_schema_passed
+from pr15_columns_gate
+cross join pr15_identity_gate
+cross join pr15_relationship_gate
+cross join pr15_check_gate
+cross join pr15_index_gate
+cross join pr15_object_gate
+cross join pr15_access_gate
+cross join pr15_boundary_gate
+\gset
+
+\echo PR15 gate columns: :pr15_columns_gate
+\echo PR15 gate identity: :pr15_identity_gate
+\echo PR15 gate relationships: :pr15_relationship_gate
+\echo PR15 gate checks: :pr15_check_gate
+\echo PR15 gate indexes: :pr15_index_gate
+\echo PR15 gate objects: :pr15_object_gate
+\echo PR15 gate access: :pr15_access_gate
+\echo PR15 gate boundary: :pr15_boundary_gate
+\echo PR15 aggregate schema: :pr15_schema_passed
+
+\if :pr15_schema_passed
+\echo 'PR15 reported fact schema contract passed.'
+\else
+\echo 'PR15 reported fact schema contract failed.'
+do $$
+begin
+    raise exception 'PR15 reported fact schema gate failed.';
+end
+$$;
+\endif
+
+insert into registry.measurement_units (unit_code, dimension, currency_code, multiplier)
+values ('MXN', 'currency', 'MXN', 1);
+
+insert into evidence.source_definition_versions (
+    source_definition_version_id, source_id, definition_version, label, country, sector,
+    adapter_key, methodological_role, lifecycle, definition_snapshot, config_hash, git_sha
+)
+values (
+    '00000000-0000-4000-8000-000000000022',
+    '00000000-0000-4000-8000-000000000011',
+    2, 'Test source v2', 'MX', 'banca_multiple', 'test_source', 'primary', 'draft',
+    '{"code":"test_source","definition_version":2}'::jsonb, repeat('9', 64), repeat('a', 40)
+);
+
+insert into registry.reporting_scopes (reporting_scope_id, scope_code)
+values
+    ('00000000-0000-4000-8000-000000000762', 'test_unpaired_scope'),
+    ('00000000-0000-4000-8000-000000000763', 'test_second_scope');
+
+insert into registry.regulatory_concept_scopes (
+    regulatory_concept_id, reporting_scope_id
+)
+values (
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000763'
+);
+
+insert into registry.regulatory_concepts (
+    regulatory_concept_id, source_id, external_code, definition_version, label,
+    definition, lifecycle, valid_from, valid_to, definition_snapshot, definition_hash, git_sha
+)
+values (
+    '00000000-0000-4000-8000-000000000752',
+    '00000000-0000-4000-8000-000000000012',
+    '1402', 1, 'Other source concept', 'Synthetic other source concept.',
+    'draft', '2026-01-01', null,
+    '{"source_code":"test_source_2","code":"1402"}'::jsonb,
+    repeat('b', 64), repeat('c', 40)
+);
+
+insert into registry.regulatory_concept_scopes (
+    regulatory_concept_id, reporting_scope_id
+)
+values (
+    '00000000-0000-4000-8000-000000000752',
+    '00000000-0000-4000-8000-000000000761'
+);
+
+insert into registry.regulatory_registrations (
+    regulatory_registration_id, institution_id, institution_definition_version_id,
+    regulator_id, registration_type, registration_code, valid_from, valid_to
+)
+values (
+    '00000000-0000-4000-8000-000000000724',
+    '00000000-0000-4000-8000-000000000701',
+    '00000000-0000-4000-8000-000000000711',
+    '00000000-0000-4000-8000-000000000301',
+    'audit_registration', 'REG-AUDIT', '2026-01-01', null
+);
+
+insert into audit.ingestion_runs (
+    ingestion_run_id, source_id, source_definition_version, trigger_kind, parameters,
+    parser_implementation_key, parser_implementation_version, identity_definition_hash, git_sha
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000801',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000802',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, 'test_parser', '2', repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000803',
+        '00000000-0000-4000-8000-000000000011',
+        2, 'test', '{}'::jsonb, 'test_parser', '1', repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000804',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('b', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000805',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, null, null, repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000806',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', null, repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000807',
+        '00000000-0000-4000-8000-000000000311',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8000-000000000808',
+        '00000000-0000-4000-8000-000000000011',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('a', 64), repeat('2', 40)
+    );
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_start, period_end, unit_code,
+    dimensions, raw_value, parsed_value, raw_label, locator_kind, source_locator,
+    locator_hash, fact_key_hash, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'instant', null, '2026-06-30', 'MXN', '{}'::jsonb,
+    '1234.50', 1234.50, 'Cartera vigente', 'csv', '{"row":1,"column":"C"}'::jsonb,
+    repeat('e', 64), repeat('f', 64), '2026-09-19T12:00:00Z'
+)
+returning
+    reported_fact_id as pr15_root_id,
+    locator_hash as pr15_root_locator_hash,
+    fact_key_hash as pr15_root_fact_key_hash,
+    parsed_value as pr15_root_parsed_value
+\gset
+
+select
+    :'pr15_root_locator_hash' = encode(
+        sha256(
+            convert_to(
+                jsonb_build_object(
+                    'locator_kind', 'csv',
+                    'source_locator', '{"row":1,"column":"C"}'::jsonb
+                )::text,
+                'UTF8'
+            )
+        ),
+        'hex'
+    )
+    and :'pr15_root_locator_hash' ~ '^[a-f0-9]{64}$'
+    and :'pr15_root_locator_hash' <> repeat('e', 64)
+    and :'pr15_root_fact_key_hash' = encode(
+        sha256(
+            convert_to(
+                jsonb_build_object(
+                    'dimensions', '{}'::jsonb,
+                    'period_end', (date '2026-06-30' - date '0001-01-01'),
+                    'period_kind', 'instant',
+                    'period_start', null,
+                    'regulatory_concept_id',
+                        '00000000-0000-4000-8000-000000000751'::uuid,
+                    'regulatory_registration_id',
+                        '00000000-0000-4000-8000-000000000722'::uuid,
+                    'reporting_scope_id',
+                        '00000000-0000-4000-8000-000000000761'::uuid,
+                    'unit_code', 'MXN'
+                )::text,
+                'UTF8'
+            )
+        ),
+        'hex'
+    )
+    and :'pr15_root_fact_key_hash' <> repeat('f', 64)
+    and :pr15_root_parsed_value = 1234.50 as pr15_root_hash_valid
+\gset
+
+\if :pr15_root_hash_valid
+\else
+\echo 'PR15 database hash computation failed.'
+do $$
+begin
+    raise exception 'PR15 hash computation gate failed.';
+end
+$$;
+\endif
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_start, period_end, unit_code,
+    dimensions, raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'duration', '2026-01-01', '2026-06-30', 'MXN', '{}'::jsonb,
+    '0', 0, 'csv', '{"row":2,"column":"C"}'::jsonb, '2026-09-19T12:01:00Z'
+);
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_start, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'duration', '2026-06-30', '2026-06-30', 'MXN',
+    '-12.5', -12.5, 'csv', '{"row":3,"column":"C"}'::jsonb, '2026-09-19T12:02:00Z'
+);
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    '12345678901234567890.123456789012345678',
+    12345678901234567890.123456789012345678,
+    'csv', '{"row":4,"column":"C"}'::jsonb, '2026-09-19T12:03:00Z'
+)
+returning parsed_value as pr15_high_precision
+\gset
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator,
+    first_observed_at, predecessor_reported_fact_id, supersession_reason
+)
+values
+    (
+        '00000000-0000-4000-8000-000000000722',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000751',
+        '00000000-0000-4000-8000-000000000011',
+        '00000000-0000-4000-8000-000000000761',
+        '00000000-0000-4000-8000-000000000202',
+        '00000000-0000-4000-8000-000000000102',
+        '00000000-0000-4000-8000-000000000801',
+        1, 'test_parser', '1', repeat('a', 64),
+        'instant', '2026-06-30', 'MXN',
+        '1234.50', 1234.50, 'csv', '{"row":1,"column":"C"}'::jsonb,
+        '2026-09-19T12:04:00Z', :pr15_root_id, 'SOURCE_REVISION'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000722',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000751',
+        '00000000-0000-4000-8000-000000000011',
+        '00000000-0000-4000-8000-000000000761',
+        '00000000-0000-4000-8000-000000000203',
+        '00000000-0000-4000-8000-000000000101',
+        '00000000-0000-4000-8000-000000000801',
+        1, 'test_parser', '1', repeat('a', 64),
+        'instant', '2026-06-30', 'MXN',
+        '1234.50', 1234.50, 'csv', '{"row":9,"column":"C"}'::jsonb,
+        '2026-09-19T12:05:00Z', :pr15_root_id, 'SOURCE_REVISION'
+    );
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator,
+    first_observed_at, predecessor_reported_fact_id, supersession_reason
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000802',
+    1, 'test_parser', '2', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    '1234.51', 1234.51, 'csv', '{"row":1,"column":"C"}'::jsonb,
+    '2026-09-19T12:06:00Z', :pr15_root_id, 'EXTRACTION_CORRECTION'
+)
+returning fact_key_hash as pr15_parser_correction_hash
+\gset
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator,
+    first_observed_at, predecessor_reported_fact_id, supersession_reason
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000803',
+    2, 'test_parser', '1', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    '1234.52', 1234.52, 'csv', '{"row":1,"column":"C"}'::jsonb,
+    '2026-09-19T12:07:00Z', :pr15_root_id, 'EXTRACTION_CORRECTION'
+)
+returning fact_key_hash as pr15_config_correction_hash
+\gset
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator,
+    first_observed_at, predecessor_reported_fact_id, supersession_reason
+)
+values (
+    '00000000-0000-4000-8000-000000000721',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000804',
+    1, 'test_parser', '1', repeat('b', 64),
+    'instant', '2026-06-30', 'MXN',
+    '1234.50', 1234.50, 'csv', '{"row":1,"column":"C"}'::jsonb,
+    '2026-09-19T12:08:00Z', :pr15_root_id, 'IDENTITY_CORRECTION'
+)
+returning fact_key_hash as pr15_identity_correction_hash,
+          locator_hash as pr15_identity_locator_hash
+\gset
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000763',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    '1234.50', 1234.50, 'csv', '{"row":1,"column":"C"}'::jsonb, '2026-09-19T12:09:00Z'
+)
+returning fact_key_hash as pr15_other_scope_hash, locator_hash as pr15_other_scope_locator_hash
+\gset
+
+select
+    :'pr15_parser_correction_hash' = :'pr15_root_fact_key_hash'
+    and :'pr15_config_correction_hash' = :'pr15_root_fact_key_hash'
+    and :'pr15_other_scope_hash' <> :'pr15_root_fact_key_hash'
+    and :'pr15_identity_correction_hash' <> :'pr15_root_fact_key_hash'
+    and :'pr15_identity_locator_hash' = :'pr15_root_locator_hash'
+    and :'pr15_other_scope_locator_hash' = :'pr15_root_locator_hash'
+    and (
+        select locator_hash <> :'pr15_root_locator_hash'
+        from reported.reported_facts
+        where source_locator = '{"row":2,"column":"C"}'::jsonb
+    )
+    and (
+        select parsed_value = 12345678901234567890.123456789012345678
+        from reported.reported_facts
+        where source_locator = '{"row":4,"column":"C"}'::jsonb
+    )
+    and (
+        select count(*) = 2
+        from reported.reported_facts
+        where predecessor_reported_fact_id = :pr15_root_id
+          and supersession_reason = 'SOURCE_REVISION'
+    ) as pr15_hash_lineage_valid
+\gset
+
+\if :pr15_hash_lineage_valid
+\else
+\echo 'PR15 hash identity or lineage gate failed.'
+do $$
+begin
+    raise exception 'PR15 hash identity or lineage gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    rejected boolean;
+    root_id bigint;
+    next_self_id bigint;
+begin
+    select reported_fact_id into strict root_id
+    from reported.reported_facts
+    where raw_label = 'Cartera vigente';
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_start, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":20,"column":"C"}'::jsonb, '2026-09-19T13:00:00Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'instant with period_start was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'duration', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":21,"column":"C"}'::jsonb, '2026-09-19T13:00:01Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duration missing period_start was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_start, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'duration', '2026-07-01', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":22,"column":"C"}'::jsonb, '2026-09-19T13:00:02Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'reversed duration dates were accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 'NaN'::numeric, 'csv', '{"row":23,"column":"C"}'::jsonb,
+            '2026-09-19T13:00:03Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'NaN parsed_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 'Infinity'::numeric, 'csv', '{"row":24,"column":"C"}'::jsonb,
+            '2026-09-19T13:00:04Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'Infinity parsed_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', '-Infinity'::numeric, 'csv', '{"row":25,"column":"C"}'::jsonb,
+            '2026-09-19T13:00:05Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception '-Infinity parsed_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '   ', 1, 'csv', '{"row":26,"column":"C"}'::jsonb, '2026-09-19T13:00:06Z'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank raw_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            null, 1, 'csv', '{"row":27,"column":"C"}'::jsonb, '2026-09-19T13:00:07Z'
+        );
+    exception when not_null_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'null raw_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', null, 'csv', '{"row":28,"column":"C"}'::jsonb, '2026-09-19T13:00:08Z'
+        );
+    exception when not_null_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'null parsed_value was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000762',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":29,"column":"C"}'::jsonb, '2026-09-19T13:00:09Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unpaired concept/scope was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000752',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":30,"column":"C"}'::jsonb, '2026-09-19T13:00:10Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong concept/source was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000724',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":31,"column":"C"}'::jsonb, '2026-09-19T13:00:11Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong registration/regulator was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000401',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":32,"column":"C"}'::jsonb, '2026-09-19T13:00:12Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong release/source was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000102',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":33,"column":"C"}'::jsonb, '2026-09-19T13:00:13Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong artifact/release was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000807',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":34,"column":"C"}'::jsonb, '2026-09-19T13:00:14Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong run/source provenance was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            2, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":35,"column":"C"}'::jsonb, '2026-09-19T13:00:15Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'mismatched source_definition_version was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '2', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":36,"column":"C"}'::jsonb, '2026-09-19T13:00:16Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'mismatched parser provenance was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('b', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":37,"column":"C"}'::jsonb, '2026-09-19T13:00:17Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'mismatched identity_definition_hash was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000805',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":38,"column":"C"}'::jsonb, '2026-09-19T13:00:18Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'null-parser run produced a fact';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000806',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":39,"column":"C"}'::jsonb, '2026-09-19T13:00:19Z'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'null-identity-hash run produced a fact';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000808',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1234.50', 1234.50, 'csv', '{"row":1,"column":"C"}'::jsonb,
+            '2026-09-19T13:00:20Z'
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'exact extraction rerun was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":40,"column":"C"}'::jsonb, '2026-09-19T13:00:21Z',
+            null, 'SOURCE_REVISION'
+        );
+    exception when check_violation or raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'root with supersession reason was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000202',
+            '00000000-0000-4000-8000-000000000102',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":41,"column":"C"}'::jsonb, '2026-09-19T13:00:22Z',
+            root_id, null
+        );
+    exception when check_violation or raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'predecessor without reason was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000202',
+            '00000000-0000-4000-8000-000000000102',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":42,"column":"C"}'::jsonb, '2026-09-19T13:00:23Z',
+            root_id, 'METHODOLOGY_CORRECTION'
+        );
+    exception when check_violation or raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'METHODOLOGY_CORRECTION was accepted';
+    end if;
+
+    next_self_id := nextval('reported.reported_facts_reported_fact_id_seq');
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            reported_fact_id, regulatory_registration_id, regulator_id, regulatory_concept_id,
+            source_id, reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) overriding system value values (
+            next_self_id,
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000202',
+            '00000000-0000-4000-8000-000000000102',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":43,"column":"C"}'::jsonb, '2026-09-19T13:00:24Z',
+            next_self_id, 'SOURCE_REVISION'
+        );
+    exception when check_violation or raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'direct self predecessor was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":44,"column":"C"}'::jsonb, '2026-09-19T13:00:25Z',
+            root_id, 'SOURCE_REVISION'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'SOURCE_REVISION with same artifact was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000722',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":45,"column":"C"}'::jsonb, '2026-09-19T13:00:26Z',
+            root_id, 'EXTRACTION_CORRECTION'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'EXTRACTION_CORRECTION with unchanged parser/config was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000721',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000801',
+            1, 'test_parser', '1', repeat('a', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":1,"column":"C"}'::jsonb, '2026-09-19T13:00:27Z',
+            root_id, 'IDENTITY_CORRECTION'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'IDENTITY_CORRECTION with same identity hash was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            '00000000-0000-4000-8000-000000000721',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            '00000000-0000-4000-8000-000000000804',
+            1, 'test_parser', '1', repeat('b', 64),
+            'instant', '2026-06-30', 'MXN',
+            '1', 1, 'csv', '{"row":46,"column":"C"}'::jsonb, '2026-09-19T13:00:28Z',
+            root_id, 'IDENTITY_CORRECTION'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'IDENTITY_CORRECTION with changed locator was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update reported.reported_facts
+            set raw_value = 'mutated'
+            where raw_label = 'Cartera vigente'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'table-owner UPDATE was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from reported.reported_facts
+            where raw_label = 'Cartera vigente'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'table-owner DELETE was accepted';
+    end if;
+end
+$$;
+
+set local role service_role;
+
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+values (
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    '99', 99, 'csv', '{"row":99,"column":"Z"}'::jsonb, '2026-09-19T13:01:00Z'
+)
+returning reported_fact_id as pr15_service_insert_id
+\gset
+
+select count(*) >= 1 as pr15_service_select_passed
+from reported.reported_facts
+\gset
+
+\if :pr15_service_select_passed
+\else
+\echo 'PR15 service_role SELECT failed.'
+do $$
+begin
+    raise exception 'PR15 service_role SELECT gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        execute $statement$update reported.reported_facts
+            set raw_value = 'service mutated'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role updated a reported fact';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from reported.reported_facts$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role deleted a reported fact';
+    end if;
+end
+$$;
+
+reset role;
+
+select
+    :pr15_hash_lineage_valid
+    and :pr15_service_select_passed
+    and :pr15_service_insert_id is not null
+    and exists (
+        select 1 from reported.reported_facts
+        where reported_fact_id = :pr15_service_insert_id
+    ) as pr15_behavior_passed
+\gset
+
+\if :pr15_behavior_passed
+\echo 'PR15 reported fact behavioral smoke passed.'
+\else
+\echo 'PR15 reported fact behavioral smoke failed.'
+do $$
+begin
+    raise exception 'PR15 reported fact behavioral gate failed.';
+end
+$$;
+\endif
 
 \if :pr11_behavior_passed
 \echo 'PR11 evidence catalog behavioral smoke passed.'
@@ -3405,6 +5190,8 @@ begin
 end
 $$;
 \endif
+
+rollback;
 
 select
     not exists (select 1 from evidence.regulators)
@@ -3465,6 +5252,31 @@ select
 do $$
 begin
     raise exception 'PR14 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    not exists (select 1 from reported.reported_facts)
+    and not exists (
+        select 1 from registry.measurement_units where unit_code = 'MXN'
+    )
+    and not exists (
+        select 1 from registry.reporting_scopes
+        where reporting_scope_id in (
+            '00000000-0000-4000-8000-000000000762',
+            '00000000-0000-4000-8000-000000000763'
+        )
+    ) as pr15_rollback_passed
+\gset
+
+\if :pr15_rollback_passed
+\echo 'PR15 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR15 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR15 rollback cleanliness gate failed.';
 end
 $$;
 \endif
