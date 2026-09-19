@@ -147,7 +147,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "  - `20260827223312 / data_core_schema_primitives`\n"
         "  - `20260828164124 / evidence_catalog_schema`\n"
         "  - `20260830234552 / ingestion_run_lifecycle`\n"
-        "  - `20260916202900 / institution_identity_schema`"
+        "  - `20260916202900 / institution_identity_schema`\n"
+        "  - `20260919143000 / reported_fact_schema`"
         in current_state
     )
     assert (
@@ -155,11 +156,11 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "PROVISIONED /\n  VERIFIED."
         in current_state
     )
-    assert "PR1\u2013PR14 are complete" in current_state
+    assert "PR1\u2013PR15 are complete" in current_state
     assert (
         "PR13\nMERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
         "PR14 MERGED /\nCOMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
-        "PR15 IMPLEMENTED ON FEATURE\nBRANCH / NOT MERGED / NOT DEPLOYED"
+        "PR15 MERGED / COMPLETE;\nPR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED"
         in current_state
     )
     assert (
@@ -192,7 +193,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert "The repository contains exactly six migrations." in current_state
-    assert "Production still has exactly five migrations." in current_state
+    assert "Production has exactly six migrations." in current_state
+    assert "No pending production migration remains." in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
         current_state
@@ -224,11 +226,11 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "`public` / `anon` / `authenticated` have no table access" in current_state
     assert "no PR14\n  SECURITY DEFINER functions exist" in current_state
     assert "PR10, PR11, PR12, PR13, and legacy objects remain intact." in current_state
-    assert "PR15+ objects remain absent." in current_state
-    assert "PR15 `reported.reported_facts` does not exist in production yet." in (
+    assert "PR15+ objects remain absent." not in current_state
+    assert "PR15 `reported.reported_facts` does not exist in production yet." not in (
         current_state
     )
-    assert "PR15a remains blocked." in current_state
+    assert "PR15a remains blocked." not in current_state
     assert "multiple observed successors" in current_state
     assert "linear supersession" not in current_state
     assert (
@@ -236,11 +238,40 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "verified\n  in production."
         in current_state
     )
+    assert "PR15 production database deployment workflow run `35453698235`" in current_state
     assert (
-        "PR15 feat/reported-fact-schema` — IMPLEMENTED on feature branch; NOT merged; "
-        "NOT deployed."
+        "PR15 feat/reported-fact-schema` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED."
         in current_state
     )
+    assert "PR15 reported-fact schema is merged, deployed, and independently verified" in (
+        current_state
+    )
+    assert "`reported.reported_facts` exists with\n  exactly 28 columns and zero rows." in (
+        current_state
+    )
+    assert "RLS is enabled with zero policies." in current_state
+    assert (
+        "`service_role` has SELECT\n  and narrow column-level INSERT only, with no UPDATE or "
+        "DELETE."
+        in current_state
+    )
+    assert "The two PR15 functions are not\n  SECURITY DEFINER." in current_state
+    assert "multiple observed successors remain\n  possible." in current_state
+    assert "PR10\u2013PR14 and legacy objects remain intact and empty." in current_state
+    assert "PR15a+ implementation objects\n  remain absent" in current_state
+    assert "`audit.review_decisions` is absent" in current_state
+    assert "PR16 current/as-of objects are absent" in current_state
+    assert "`public.regulatory_bank_metrics_v1` remains absent" in current_state
+    assert (
+        "PR15a feat/review-decision-events` — NEXT; not implemented."
+        in current_state
+    )
+    assert (
+        "PR15a\n  `feat/review-decision-events` is NEXT and has not started."
+        in current_state
+    )
+    assert "No `review_decisions` exist yet." in current_state
     assert "PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented." not in (
         current_state
     )
@@ -254,14 +285,19 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR15 remains blocked" not in current_state
     assert "PR15 BLOCKED" not in current_state
     assert "production deployment is pending" not in current_state
-    assert "is implemented in the repository and is not deployed" in current_state
+    assert "is implemented in the repository and is not deployed" not in current_state
+    assert "IMPLEMENTED on feature branch" not in current_state
+    assert "NOT merged" not in current_state
+    assert "NOT deployed" not in current_state
+    assert "Production still has exactly five migrations." not in current_state
+    assert "feature-branch PR15" not in current_state
     assert (
         "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
         "artifact sizes"
         in current_state
     )
     assert (
-        "separately reviewed Storage capacity/transport change is required. This gate does "
-        "not block\n  PR13."
+        "separately reviewed Storage capacity/transport change is required. This gate must be "
+        "satisfied\n  before PR19 and does not block PR15a\u2013PR18."
         in current_state
     )
