@@ -5160,12 +5160,13 @@ $$;
 reset role;
 
 select
-    :pr15_hash_lineage_valid
-    and :pr15_service_select_passed
-    and :pr15_service_insert_id is not null
+    :'pr15_hash_lineage_valid'::boolean
+    and :'pr15_service_select_passed'::boolean
+    and :'pr15_service_insert_id'::bigint is not null
     and exists (
-        select 1 from reported.reported_facts
-        where reported_fact_id = :pr15_service_insert_id
+        select 1
+        from reported.reported_facts
+        where reported_fact_id = :'pr15_service_insert_id'::bigint
     ) as pr15_behavior_passed
 \gset
 
