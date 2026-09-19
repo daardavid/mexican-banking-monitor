@@ -146,7 +146,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "  - `202608250001 / initial_schema`\n"
         "  - `20260827223312 / data_core_schema_primitives`\n"
         "  - `20260828164124 / evidence_catalog_schema`\n"
-        "  - `20260830234552 / ingestion_run_lifecycle`"
+        "  - `20260830234552 / ingestion_run_lifecycle`\n"
+        "  - `20260916202900 / institution_identity_schema`"
         in current_state
     )
     assert (
@@ -154,11 +155,10 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "PROVISIONED /\n  VERIFIED."
         in current_state
     )
-    assert "PR1\u2013PR13 are complete" in current_state
+    assert "PR1\u2013PR14 are complete" in current_state
     assert (
         "PR13\nMERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
-        "PR14 IMPLEMENTED /\nPRODUCTION DEPLOYMENT PENDING; PR15 BLOCKED PENDING "
-        "PR14 PRODUCTION VERIFICATION"
+        "PR14 MERGED /\nCOMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 NEXT"
         in current_state
     )
     assert (
@@ -197,24 +197,52 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     )
     assert "RLS is\n  enabled with no policies" in current_state
     assert "no\n  SECURITY DEFINER functions were introduced" in current_state
-    assert "Production still has no PR14 registry identity\n  objects." in current_state
     assert "PR13 audit ingestion lifecycle is merged, deployed, and verified in production." in (
         current_state
     )
     assert (
-        "PR14 feat/institution-identity-schema` — IMPLEMENTED on "
-        "`feat/institution-identity-schema`;\n  production deployment PENDING."
+        "PR14 feat/institution-identity-schema` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED."
         in current_state
     )
+    assert "PR14 production database deployment workflow run `35235936358`" in current_state
+    assert "exactly ten ordinary tables." in current_state
+    assert "`btree_gist` is installed in schema `extensions`." in current_state
+    assert "`registry.institutions`," in current_state
+    assert "`registry.institution_definition_versions`," in current_state
+    assert "`registry.regulatory_registrations`," in current_state
+    assert "`registry.institution_aliases`," in current_state
+    assert "`registry.institution_cohorts`," in current_state
+    assert "`registry.regulatory_concepts`," in current_state
+    assert "`registry.regulatory_concept_scopes`; all seven PR14" in current_state
+    assert "tables exist and are empty." in current_state
+    assert "All seven production tables are empty." in current_state
+    assert "RLS is enabled on all seven with zero policies" in current_state
+    assert "`service_role`\n  is SELECT-only" in current_state
+    assert "`public` / `anon` / `authenticated` have no table access" in current_state
+    assert "no PR14\n  SECURITY DEFINER functions exist" in current_state
+    assert "PR10, PR11, PR12, PR13, and legacy objects remain intact." in current_state
+    assert "PR15+ objects remain absent." in current_state
     assert (
-        "PR14 `feat/institution-identity-schema` is implemented in the "
-        "repository and is not deployed."
+        "PR14 institution identity and regulatory taxonomy schema is merged, deployed, and "
+        "verified\n  in production."
         in current_state
     )
-    assert "PR15 remains blocked until PR14 is merged" in current_state
+    assert "PR15 feat/reported-fact-schema` — NEXT." in current_state
+    assert "PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented." in (
+        current_state
+    )
     assert "PR14 `feat/institution-identity-schema` is NEXT and is not yet implemented." not in (
         current_state
     )
+    assert "PRODUCTION DEPLOYMENT PENDING" not in current_state
+    assert "Production still has no PR14" not in current_state
+    assert "Production does not yet contain these objects." not in current_state
+    assert "unimplemented-in-production" not in current_state
+    assert "PR15 remains blocked" not in current_state
+    assert "PR15 BLOCKED" not in current_state
+    assert "production deployment is pending" not in current_state
+    assert "is implemented in the repository and is not deployed" not in current_state
     assert (
         "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
         "artifact sizes"

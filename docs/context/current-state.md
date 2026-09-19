@@ -12,10 +12,9 @@ not a changelog and does not make the roadmap executable.
   metrics, audit, serving, and versioned public contracts.
 - Stack: CPython 3.12.14, `uv` 0.12.6, PostgreSQL/Supabase, Supabase CLI migrations, GitHub
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
-- General state: bootstrap/MVP foundation and PR1–PR13 are complete. PR10, PR11, and PR13 are
-  merged, deployed, and verified. PR12 is merged and complete, and its production artifact Storage
-  is provisioned and verified. PR14 `feat/institution-identity-schema` is IMPLEMENTED on the
-  feature branch; production deployment is pending.
+- General state: bootstrap/MVP foundation and PR1–PR14 are complete. PR10, PR11, PR13, and PR14
+  are merged, deployed, and verified. PR12 is merged and complete, and its production artifact
+  Storage is provisioned and verified. PR15 `feat/reported-fact-schema` is NEXT.
 
 ## Implemented now
 
@@ -48,11 +47,11 @@ not a changelog and does not make the roadmap executable.
   artifact observation attempts in `audit`, with a PostgreSQL-owned lifecycle, terminal
   counters, same-source artifact lineage, restart lineage, and narrow service-role writes. Both
   production tables are empty.
-- The repository PR14 institution-identity schema implements seven empty private registry
+- The deployed PR14 institution-identity schema implements seven empty private registry
   tables: stable institution identity, immutable institution definition versions, effective-dated
   registrations/aliases/cohort memberships, immutable regulatory concepts, and concept/scope
   pairings. No real institution or concept definitions are seeded. Runtime `service_role` is
-  SELECT-only. Production does not yet contain these objects.
+  SELECT-only. All seven production tables are empty.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -65,8 +64,8 @@ not a changelog and does not make the roadmap executable.
   main-only gate, serialized execution, pinned tooling, local integrity/destructive-DDL checks,
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
-  migrations. The workflow has been used successfully for the verified PR10, PR11, and PR13
-  deployments.
+  migrations. The workflow has been used successfully for the verified PR10, PR11, PR13, and
+  PR14 deployments.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -80,8 +79,8 @@ not a changelog and does not make the roadmap executable.
 
 `Regulatory Data Core v1: APPROVED / IMPLEMENTATION STARTED — PR10 AND PR11 DEPLOYED /
 VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13
-MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 IMPLEMENTED /
-PRODUCTION DEPLOYMENT PENDING; PR15 BLOCKED PENDING PR14 PRODUCTION VERIFICATION`
+MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
+COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 NEXT`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -94,9 +93,8 @@ and Git/YAML editorial authority with Python as executable authority.
 - The legacy initial migration remains immutable.
 - The repository contains exactly five migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
-  relations, the deployed PR13 audit ingestion lifecycle, and the unimplemented-in-production
-  PR14 institution identity/taxonomy schema. No v1 public contract exists, and there is no
-  dual-write.
+  relations, the deployed PR13 audit ingestion lifecycle, and the deployed PR14 institution
+  identity/taxonomy schema. No v1 public contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
 ## Operational state
@@ -111,13 +109,15 @@ and Git/YAML editorial authority with Python as executable authority.
   - `20260827223312 / data_core_schema_primitives`
   - `20260828164124 / evidence_catalog_schema`
   - `20260830234552 / ingestion_run_lifecycle`
+  - `20260916202900 / institution_identity_schema`
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
 - The remote contains the seven v1 responsibility schemas: `evidence`, `registry`, `reported`,
   `semantic`, `metrics`, `audit`, and `serving`.
 - The remote contains `registry.measurement_units`, `registry.reporting_scopes`, and
-  `registry.reporting_scope_versions`; all three tables are empty.
+  `registry.reporting_scope_versions`; all three tables are empty. Production `registry` has
+  exactly ten ordinary tables. `btree_gist` is installed in schema `extensions`.
 - Production contains exactly five PR11 evidence catalog tables: `evidence.regulators`,
   `evidence.sources`, `evidence.source_definition_versions`, `evidence.source_releases`, and
   `evidence.source_artifacts`; all five tables are empty.
@@ -133,13 +133,23 @@ and Git/YAML editorial authority with Python as executable authority.
   completed successfully and was executed exactly once. Production contains
   `audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty. RLS is
   enabled with no policies, `service_role` retains only the intended narrow privileges, and no
-  SECURITY DEFINER functions were introduced. Production still has no PR14 registry identity
-  objects. `public.regulatory_bank_metrics_v1` remains absent.
+  SECURITY DEFINER functions were introduced.
+- PR14 production database deployment workflow run `35235936358` completed successfully and was
+  executed exactly once. Production contains `registry.institutions`,
+  `registry.institution_definition_versions`, `registry.regulatory_registrations`,
+  `registry.institution_aliases`, `registry.institution_cohorts`,
+  `registry.regulatory_concepts`, and `registry.regulatory_concept_scopes`; all seven PR14
+  tables exist and are empty. RLS is enabled on all seven with zero policies, `service_role`
+  is SELECT-only, `public` / `anon` / `authenticated` have no table access, and no PR14
+  SECURITY DEFINER functions exist. PR10, PR11, PR12, PR13, and legacy objects remain intact.
+  PR15+ objects remain absent. `public.regulatory_bank_metrics_v1` remains absent.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
 - PR11 evidence catalog schema is merged, deployed, and verified in production.
 - PR13 audit ingestion lifecycle is merged, deployed, and verified in production.
+- PR14 institution identity and regulatory taxonomy schema is merged, deployed, and verified
+  in production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -168,17 +178,17 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR13 feat/ingestion-run-lifecycle` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR14 feat/institution-identity-schema` — IMPLEMENTED on `feat/institution-identity-schema`;
-  production deployment PENDING.
+- `PR14 feat/institution-identity-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
+- `PR15 feat/reported-fact-schema` — NEXT.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
-  deployment COMPLETE / VERIFIED; PR14 IMPLEMENTED / PRODUCTION DEPLOYMENT PENDING; PR15 blocked
-  pending PR14 merge, production deploy, verification, and checkpoint.
+  deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
+  VERIFIED; PR15 NEXT.
 
 ## Known pending gates
 
-- PR14 `feat/institution-identity-schema` is implemented in the repository and is not deployed.
-  PR15 remains blocked until PR14 is merged, deployed to production, verified, and checkpointed.
+- PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,
