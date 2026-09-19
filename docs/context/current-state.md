@@ -14,7 +14,7 @@ not a changelog and does not make the roadmap executable.
   Actions, YAML, Ruff, Mypy, Pytest, Streamlit, and Plotly.
 - General state: bootstrap/MVP foundation and PR1–PR14 are complete. PR10, PR11, PR13, and PR14
   are merged, deployed, and verified. PR12 is merged and complete, and its production artifact
-  Storage is provisioned and verified. PR15 `feat/reported-fact-schema` is NEXT.
+  Storage is provisioned and verified. PR15 `feat/reported-fact-schema` is implemented in the repository and is not deployed.
 
 ## Implemented now
 
@@ -52,6 +52,10 @@ not a changelog and does not make the roadmap executable.
   registrations/aliases/cohort memberships, immutable regulatory concepts, and concept/scope
   pairings. No real institution or concept definitions are seeded. Runtime `service_role` is
   SELECT-only. All seven production tables are empty.
+- This feature branch implements PR15 `reported.reported_facts`: an append-only private fact
+  table with composite identity/provenance FKs, database-computed SHA-256 hashes, and
+  append-only revision lineage supporting multiple observed successors. It is not merged and
+  not deployed. Production does not contain this table.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -80,7 +84,8 @@ not a changelog and does not make the roadmap executable.
 `Regulatory Data Core v1: APPROVED / IMPLEMENTATION STARTED — PR10 AND PR11 DEPLOYED /
 VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13
 MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
-COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 NEXT`
+COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 IMPLEMENTED ON FEATURE
+BRANCH / NOT MERGED / NOT DEPLOYED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -91,10 +96,11 @@ and Git/YAML editorial authority with Python as executable authority.
 - Schemas `core`, `ops`, and `analytics` are legacy and frozen for the v1 transition.
 - `public.bank_metrics` is an existing legacy derived surface.
 - The legacy initial migration remains immutable.
-- The repository contains exactly five migrations. They define the seven v1 responsibility
+- The repository contains exactly six migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
-  relations, the deployed PR13 audit ingestion lifecycle, and the deployed PR14 institution
-  identity/taxonomy schema. No v1 public contract exists, and there is no dual-write.
+  relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
+  identity/taxonomy schema, and the feature-branch PR15 reported-fact schema. Production still
+  has exactly five migrations. No v1 public contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
 ## Operational state
@@ -142,7 +148,8 @@ and Git/YAML editorial authority with Python as executable authority.
   tables exist and are empty. RLS is enabled on all seven with zero policies, `service_role`
   is SELECT-only, `public` / `anon` / `authenticated` have no table access, and no PR14
   SECURITY DEFINER functions exist. PR10, PR11, PR12, PR13, and legacy objects remain intact.
-  PR15+ objects remain absent. `public.regulatory_bank_metrics_v1` remains absent.
+  PR15 `reported.reported_facts` does not exist in production yet. PR15+ objects remain absent.
+  `public.regulatory_bank_metrics_v1` remains absent.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -180,15 +187,16 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR14 feat/institution-identity-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR15 feat/reported-fact-schema` — NEXT.
+- `PR15 feat/reported-fact-schema` — IMPLEMENTED on feature branch; NOT merged; NOT deployed.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
-  VERIFIED; PR15 NEXT.
+  VERIFIED; PR15 IMPLEMENTED ON FEATURE BRANCH / NOT MERGED / NOT DEPLOYED.
 
 ## Known pending gates
 
-- PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented.
+- PR15 `feat/reported-fact-schema` is implemented on this feature branch and is not merged or
+  deployed. Production still has exactly five migrations. PR15a remains blocked.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,

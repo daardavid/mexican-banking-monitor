@@ -158,7 +158,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR1\u2013PR14 are complete" in current_state
     assert (
         "PR13\nMERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
-        "PR14 MERGED /\nCOMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 NEXT"
+        "PR14 MERGED /\nCOMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; "
+        "PR15 IMPLEMENTED ON FEATURE\nBRANCH / NOT MERGED / NOT DEPLOYED"
         in current_state
     )
     assert (
@@ -190,7 +191,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly five migrations." in current_state
+    assert "The repository contains exactly six migrations." in current_state
+    assert "Production still has exactly five migrations." in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
         current_state
@@ -223,13 +225,23 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "no PR14\n  SECURITY DEFINER functions exist" in current_state
     assert "PR10, PR11, PR12, PR13, and legacy objects remain intact." in current_state
     assert "PR15+ objects remain absent." in current_state
+    assert "PR15 `reported.reported_facts` does not exist in production yet." in (
+        current_state
+    )
+    assert "PR15a remains blocked." in current_state
+    assert "multiple observed successors" in current_state
+    assert "linear supersession" not in current_state
     assert (
         "PR14 institution identity and regulatory taxonomy schema is merged, deployed, and "
         "verified\n  in production."
         in current_state
     )
-    assert "PR15 feat/reported-fact-schema` — NEXT." in current_state
-    assert "PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented." in (
+    assert (
+        "PR15 feat/reported-fact-schema` — IMPLEMENTED on feature branch; NOT merged; "
+        "NOT deployed."
+        in current_state
+    )
+    assert "PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented." not in (
         current_state
     )
     assert "PR14 `feat/institution-identity-schema` is NEXT and is not yet implemented." not in (
@@ -242,7 +254,7 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR15 remains blocked" not in current_state
     assert "PR15 BLOCKED" not in current_state
     assert "production deployment is pending" not in current_state
-    assert "is implemented in the repository and is not deployed" not in current_state
+    assert "is implemented in the repository and is not deployed" in current_state
     assert (
         "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
         "artifact sizes"
