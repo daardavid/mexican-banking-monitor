@@ -192,9 +192,13 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly six migrations." in current_state
+    assert "The repository contains exactly seven migrations." in current_state
     assert "Production has exactly six migrations." in current_state
-    assert "No pending production migration remains." in current_state
+    assert (
+        "Exactly one repository migration,\n"
+        "  `20260919180000_review_decision_events.sql`, is implemented and not deployed."
+        in current_state
+    )
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
         current_state
@@ -259,19 +263,11 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "The two PR15 functions are not\n  SECURITY DEFINER." in current_state
     assert "multiple observed successors remain\n  possible." in current_state
     assert "PR10\u2013PR14 and legacy objects remain intact and empty." in current_state
-    assert "PR15a+ implementation objects\n  remain absent" in current_state
+    assert "In production, PR15a+\n  implementation objects remain absent" in current_state
     assert "`audit.review_decisions` is absent" in current_state
     assert "PR16 current/as-of objects are absent" in current_state
     assert "`public.regulatory_bank_metrics_v1` remains absent" in current_state
-    assert (
-        "PR15a feat/review-decision-events` — NEXT; not implemented."
-        in current_state
-    )
-    assert (
-        "PR15a\n  `feat/review-decision-events` is NEXT and has not started."
-        in current_state
-    )
-    assert "No `review_decisions` exist yet." in current_state
+    assert "No `review_decisions` rows exist anywhere." in current_state
     assert "PR15 `feat/reported-fact-schema` is NEXT and is not yet implemented." not in (
         current_state
     )
@@ -284,13 +280,7 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "unimplemented-in-production" not in current_state
     assert "PR15 remains blocked" not in current_state
     assert "PR15 BLOCKED" not in current_state
-    assert "production deployment is pending" not in current_state
-    assert "is implemented in the repository and is not deployed" not in current_state
-    assert "IMPLEMENTED on feature branch" not in current_state
-    assert "NOT merged" not in current_state
-    assert "NOT deployed" not in current_state
     assert "Production still has exactly five migrations." not in current_state
-    assert "feature-branch PR15" not in current_state
     assert (
         "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
         "artifact sizes"
@@ -301,3 +291,89 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "satisfied\n  before PR19 and does not block PR15a\u2013PR18."
         in current_state
     )
+
+
+def test_pr15a_is_recorded_as_feature_branch_only_state() -> None:
+    current_state = (
+        REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "PR15a `feat/review-decision-events` is\n  IMPLEMENTED on this feature branch; "
+        "it is NOT merged and NOT deployed."
+        in current_state
+    )
+    assert (
+        "PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A IMPLEMENTED ON FEATURE "
+        "BRANCH /\nNOT MERGED / NOT DEPLOYED`"
+        in current_state
+    )
+    assert (
+        "PR15a feat/review-decision-events` — IMPLEMENTED ON FEATURE BRANCH; NOT merged; "
+        "NOT deployed."
+        in current_state
+    )
+    assert (
+        "PR16 feat/fact-current-as-of-queries` — NEXT AFTER PR15a completion; blocked until "
+        "PR15a is\n  merged, deployed, and verified."
+        in current_state
+    )
+    assert "the undeployed\n  feature-branch PR15a review-decision schema." in current_state
+    assert (
+        "PR15a is implemented on the `feat/review-decision-events` branch only. It is not "
+        "merged, no\n  production deployment workflow has been run for it"
+        in current_state
+    )
+    assert "do not exist in production yet." in current_state
+    assert "`audit.quality_issues` is deliberately still absent everywhere." in current_state
+    assert "`audit.quality_issues` does not exist." in current_state
+
+    for frozen_pr15a_contract in (
+        "the decision vocabulary `ACCEPT`,",
+        "the actor vocabulary `HUMAN` and `SYSTEM_POLICY`",
+        "a strictly monotonic per-fact `(decided_at, review_decision_id)` event",
+        "enforced under a per-fact advisory lock",
+        "a `REVOKE` precondition requiring an",
+        "audit-only correction lineage constrained to the same fact",
+        "Review authority is never a mutable status on a reported fact.",
+        "`audit.effective_review_decisions_as_of(timestamptz)` function; a fact with no event is",
+        "PR15a deliberately adds no idempotency or request key",
+        "These objects exist only on the feature branch.",
+    ):
+        assert frozen_pr15a_contract in current_state
+
+    assert (
+        "Before the first at-least-once writer of review decisions exists, that writer PR must "
+        "either\n  guarantee exactly-once transactional decision insertion or add a "
+        "client-supplied\n  request/idempotency key with a `UNIQUE` contract."
+        in current_state
+    )
+    assert (
+        "`PR21 feat/cnbv-regulatory-slice` is the\n  first roadmap PR expected to discharge "
+        "this gate."
+        in current_state
+    )
+    assert (
+        "PR15a permits competing `ACCEPT` events\n  on two successors of the same predecessor "
+        "and adds no per-predecessor acceptance uniqueness or\n  competing-acceptance trigger. "
+        "PR16 owns fact-level current/publishable semantics and their\n  enforcement mechanism."
+        in current_state
+    )
+    assert (
+        "Quality issues, quality blocker workflow, review queues, and automatic acceptance "
+        "workflow\n  remain PR24 work."
+        in current_state
+    )
+
+    for forbidden_claim in (
+        "PR15a production database deployment workflow run",
+        "PR15a is merged",
+        "PR15a review decision schema is merged, deployed",
+        "Production has exactly seven migrations",
+        "PR15a PRODUCTION DEPLOYMENT COMPLETE",
+        "current_publishable",
+        "publishable_as_of",
+        "quality blocker workflow is implemented",
+        "duplicate review events are harmless",
+    ):
+        assert forbidden_claim not in current_state

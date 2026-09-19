@@ -32,6 +32,7 @@ PR13_MIGRATION_SHA256 = (
 )
 PR14_MIGRATION_NAME = "20260916202900_institution_identity_schema.sql"
 PR15_MIGRATION_NAME = "20260919143000_reported_fact_schema.sql"
+PR15A_MIGRATION_NAME = "20260919180000_review_decision_events.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -84,6 +85,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr13_content = migrations[3].path.read_bytes().replace(b"\r\n", b"\n")
     pr14_content = migrations[4].path.read_bytes().replace(b"\r\n", b"\n")
     pr15_content = migrations[5].path.read_bytes().replace(b"\r\n", b"\n")
+    pr15a_content = migrations[6].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -92,8 +94,9 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
         PR13_MIGRATION_NAME,
         PR14_MIGRATION_NAME,
         PR15_MIGRATION_NAME,
+        PR15A_MIGRATION_NAME,
     ]
-    assert len(migrations) == 6
+    assert len(migrations) == 7
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
@@ -101,9 +104,11 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     assert hashlib.sha256(pr13_content).hexdigest() == PR13_MIGRATION_SHA256
     assert "create table registry.institutions" in pr14_content.decode("utf-8")
     assert "create table reported.reported_facts" in pr15_content.decode("utf-8")
+    assert "create table audit.review_decisions" in pr15a_content.decode("utf-8")
+    assert PR15A_MIGRATION_NAME > PR15_MIGRATION_NAME
 
 
-def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> None:
+def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations() -> None:
     smoke_text = (
         REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
     ).read_text(encoding="utf-8")
@@ -136,18 +141,45 @@ def test_migration_smoke_fails_closed_and_allows_only_pr13_audit_relations() -> 
     assert "('reported_facts', 'r')" in normalized
     assert "('reported_facts_reported_fact_id_seq', 's')" in normalized
 
-    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
-        "), legacy_table_gate as (", 1
-    )[0]
-    assert "count(*) = 3" in audit_boundary
-    for expected_relation in (
+    expected_audit_relations = (
         "('ingestion_runs', 'r')",
         "('ingestion_run_artifacts', 'r')",
         "('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 's')",
-    ):
+        "('review_decisions', 'r')",
+        "('review_decisions_review_decision_id_seq', 's')",
+        "('effective_review_decisions', 'v')",
+    )
+    audit_boundary = normalized.split("), audit_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    assert "count(*) = 6" in audit_boundary
+    for expected_relation in expected_audit_relations:
         assert expected_relation in audit_boundary
+    assert "to_regclass('audit.quality_issues') is null" in audit_boundary
     assert "bool_and((relation.relname, relation.relkind::text) in" in audit_boundary
     assert "where namespace.nspname = 'audit'" in audit_boundary
+
+    evidence_boundary = normalized.split("), evidence_boundary_gate as (", 1)[1].split(
+        "), legacy_table_gate as (", 1
+    )[0]
+    nested_audit_inventory = evidence_boundary.split(
+        "from pg_catalog.pg_class audit_relation", 1
+    )[0].rsplit("select", 1)[1]
+    assert "count(*) = 6" in nested_audit_inventory
+    assert "count(*) = 3" not in nested_audit_inventory
+    for expected_relation in expected_audit_relations:
+        assert expected_relation in nested_audit_inventory
+    assert "count(*) = 5" in evidence_boundary
+    assert "to_regclass('public.regulatory_bank_metrics_v1') is null" in evidence_boundary
+
+    pr14_boundary = normalized.split("), pr14_boundary_gate as (", 1)[1].split(
+        ") select", 1
+    )[0]
+    assert "to_regclass('audit.review_decisions') is not null" in pr14_boundary
+    assert re.search(
+        r"to_regclass\('audit.review_decisions'\) is null\b", pr14_boundary
+    ) is None
+    assert "to_regclass('audit.quality_issues') is null" in pr14_boundary
     assert "do $ declare" not in normalized
 
 
@@ -770,6 +802,277 @@ def test_pr15_reported_facts_shape_hashes_and_narrow_grants() -> None:
     assert "before insert on reported.reported_facts" in normalized
     assert "before update or delete on reported.reported_facts" in normalized
     assert "reported facts are append-only" in normalized
+
+
+def test_pr15a_migration_is_additive_private_unseeded_and_in_scope() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR15A_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    assert normalized.count("create table ") == 1
+    assert "create table audit.review_decisions (" in normalized
+    assert "alter table audit.review_decisions enable row level security;" in normalized
+    assert "set local search_path" in normalized
+    assert "set search_path =" not in normalized.replace("set local search_path", "")
+
+    assert forbidden_operations(migration_text) == []
+    assert "insert into" not in normalized
+    assert "create policy" not in normalized
+    assert "security definer" not in normalized
+    assert "create role " not in normalized
+    assert "alter role " not in normalized
+    assert "cascade" not in normalized
+    assert "on delete" not in normalized
+    assert "on update" not in normalized
+    assert "drop " not in normalized
+    assert "truncate" not in normalized
+    assert "delete from" not in normalized
+    assert "core." not in normalized
+    assert "ops." not in normalized
+    assert "analytics." not in normalized
+    assert "semantic." not in normalized
+    assert "metrics." not in normalized
+    assert "serving." not in normalized
+    assert "public.regulatory_bank_metrics_v1" not in normalized
+    assert "float" not in normalized
+    assert "double precision" not in normalized
+    assert " real " not in f" {normalized} "
+
+    for later_phase_object in (
+        "quality_issues",
+        "quality_issue_id",
+        "current_observed",
+        "current_publishable",
+        "observed_as_of",
+        "publishable_as_of",
+        "review_status",
+        "idempotency",
+        "request_key",
+        "bank_metrics",
+    ):
+        assert later_phase_object not in normalized
+
+
+def test_pr15a_review_decision_timeline_actor_and_reason_contracts() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR15A_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    table_definition = normalized.split(
+        "create table audit.review_decisions (", 1
+    )[1].split("create function audit.enforce_review_decision_insert()", 1)[0]
+
+    assert "review_decision_id bigint generated always as identity primary key" in (
+        table_definition
+    )
+    assert "decided_at timestamptz not null," in table_definition
+    assert "decided_at timestamptz not null default" not in table_definition
+    assert "reason text not null," in table_definition
+    assert "reason_code" not in table_definition
+    assert "reason_detail" not in table_definition
+    assert (
+        "foreign key (reported_fact_id) references reported.reported_facts "
+        "(reported_fact_id)"
+    ) in table_definition
+    assert "unique (review_decision_id, reported_fact_id)" in table_definition
+    assert (
+        "foreign key (corrects_review_decision_id, reported_fact_id) references "
+        "audit.review_decisions ( review_decision_id, reported_fact_id )"
+    ) in table_definition
+    assert "unique (corrects_review_decision_id)" not in normalized
+    assert "corrects_review_decision_id <> review_decision_id" in table_definition
+
+    assert "decision in ('accept', 'reject', 'revoke')" in table_definition
+    assert "actor_kind in ('human', 'system_policy')" in table_definition
+    for actor_shape_clause in (
+        "actor_kind = 'human' and human_actor_key is not null "
+        "and policy_implementation_key is null "
+        "and policy_implementation_version is null and policy_git_sha is null",
+        "actor_kind = 'system_policy' and human_actor_key is null "
+        "and policy_implementation_key is not null "
+        "and policy_implementation_version is not null "
+        "and policy_git_sha is not null",
+    ):
+        assert actor_shape_clause in table_definition
+    assert "human_actor_key) <= 128" in table_definition
+    assert "human_actor_key ~ '^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$'" in table_definition
+    assert (
+        "policy_implementation_key ~ '^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$'"
+        in table_definition
+    )
+    assert "policy_implementation_version) <= 128" in table_definition
+    assert "btrim(policy_implementation_version) <> ''" in table_definition
+    assert (
+        "policy_git_sha ~ '^(?:[a-f0-9]{40}|[a-f0-9]{64})$'" in table_definition
+    )
+    assert r"\|" not in migration_text
+    assert (
+        "check ( btrim(reason) <> '' and char_length(reason) <= 512 "
+        "and reason !~ '[[:cntrl:]]' )"
+    ) in table_definition
+
+    assert "new.decided_at > pg_catalog.clock_timestamp()" in normalized
+    assert "pg_catalog.pg_advisory_xact_lock(new.reported_fact_id)" in normalized
+    assert "hashtext" not in normalized
+    assert "hashtextextended" not in normalized
+    assert "order by head.decided_at desc, head.review_decision_id desc limit 1" in (
+        normalized
+    )
+    assert (
+        "(new.decided_at, new.review_decision_id) <= "
+        "(head_decided_at, head_review_decision_id)"
+    ) in normalized
+    assert "new.decision = 'revoke' and head_decision is distinct from 'accept'" in (
+        normalized
+    )
+    assert "before insert on audit.review_decisions" in normalized
+    assert "before update or delete on audit.review_decisions" in normalized
+    assert "review decisions are append-only" in normalized
+    assert "now()" not in normalized
+
+
+def test_pr15a_query_surface_indexes_and_grants_are_narrow() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR15A_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    assert normalized.count("create view ") == 1
+    assert (
+        "create view audit.effective_review_decisions with (security_invoker = true) as"
+        in normalized
+    )
+    assert "distinct on (decision_event.reported_fact_id)" in normalized
+    assert (
+        "create function audit.effective_review_decisions_as_of"
+        "(decision_cutoff timestamptz)" in normalized
+    )
+    assert "language sql stable" in normalized
+    assert "decision_event.decided_at <= decision_cutoff" in normalized
+    assert normalized.count(
+        "decision_event.reported_fact_id, decision_event.decided_at desc, "
+        "decision_event.review_decision_id desc"
+    ) == 2
+
+    expected_indexes = (
+        "review_decisions_fact_timeline_idx",
+        "review_decisions_corrects_idx",
+    )
+    assert normalized.count("create index ") == len(expected_indexes)
+    assert "create unique index" not in normalized
+    for index_name in expected_indexes:
+        assert f"create index {index_name}" in normalized
+    assert (
+        "on audit.review_decisions ( reported_fact_id, decided_at desc, "
+        "review_decision_id desc )" in normalized
+    )
+    assert "where corrects_review_decision_id is not null" in normalized
+    assert "gin (" not in normalized
+    assert "partition" not in normalized
+
+    assert "grant select on audit.review_decisions to service_role;" in normalized
+    granted_columns = {
+        column.strip()
+        for column in normalized.split("grant insert (", 1)[1]
+        .split(") on audit.review_decisions to service_role;", 1)[0]
+        .split(",")
+        if column.strip()
+    }
+    assert granted_columns == {
+        "reported_fact_id",
+        "decision",
+        "decided_at",
+        "actor_kind",
+        "human_actor_key",
+        "policy_implementation_key",
+        "policy_implementation_version",
+        "policy_git_sha",
+        "reason",
+        "corrects_review_decision_id",
+    }
+    assert "review_decision_id" not in granted_columns
+    assert (
+        "grant usage on sequence audit.review_decisions_review_decision_id_seq "
+        "to service_role;" in normalized
+    )
+    assert (
+        "grant select on audit.effective_review_decisions to service_role;"
+        in normalized
+    )
+    assert (
+        "grant execute on function "
+        "audit.effective_review_decisions_as_of(timestamptz) to service_role;"
+        in normalized
+    )
+    assert "grant update" not in normalized
+    assert "grant delete" not in normalized
+    assert "grant truncate" not in normalized
+    assert "grant references" not in normalized
+    assert "grant trigger" not in normalized
+    for revoked_role_list in (
+        "revoke all privileges on audit.review_decisions "
+        "from public, anon, authenticated, service_role;",
+        "revoke all privileges on sequence "
+        "audit.review_decisions_review_decision_id_seq "
+        "from public, anon, authenticated, service_role;",
+        "revoke all privileges on audit.effective_review_decisions "
+        "from public, anon, authenticated, service_role;",
+    ):
+        assert revoked_role_list in normalized
+    assert (
+        "revoke all privileges on function audit.enforce_review_decision_insert(), "
+        "audit.reject_review_decision_mutation() "
+        "from public, anon, authenticated, service_role;" in normalized
+    )
+    assert (
+        "revoke all privileges on function "
+        "audit.effective_review_decisions_as_of(timestamptz) "
+        "from public, anon, authenticated, service_role;" in normalized
+    )
+
+
+def test_pr15a_smoke_freezes_timeline_revoke_and_idempotency_boundaries() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(smoke_text.lower().split())
+
+    for required_gate in (
+        "pr15a_columns_gate",
+        "pr15a_identity_gate",
+        "pr15a_relationship_gate",
+        "pr15a_check_gate",
+        "pr15a_vocabulary_gate",
+        "pr15a_index_gate",
+        "pr15a_object_gate",
+        "pr15a_access_gate",
+        "pr15a_boundary_gate",
+        "pr15a_behavior_passed",
+        "pr15a_rollback_passed",
+    ):
+        assert required_gate in normalized
+
+    assert "to_regclass('audit.review_decisions') is not null" in normalized
+    assert "to_regclass('audit.quality_issues') is null" in normalized
+    assert "security_invoker=true" in normalized
+    assert "effective_review_decisions_as_of(pg_catalog.clock_timestamp())" in normalized
+    assert "effective_review_decisions_as_of(now())" not in normalized
+    assert "'approve'" in normalized
+    assert "first-event revoke was accepted" in normalized
+    assert "revoke after reject was accepted" in normalized
+    assert "revoke after revoke was accepted" in normalized
+    assert "revoke after accept then reject was accepted" in normalized
+    assert "future decided_at was accepted" in normalized
+    assert "decision behind the current head was accepted" in normalized
+    assert "backdated correction behind the current head was accepted" in normalized
+    assert "cross-fact correction was accepted" in normalized
+    assert "self-correction was accepted" in normalized
+    assert "sibling successor c is also accepted" in normalized
+    assert "service_role updated a review decision" in normalized
+    assert "service_role deleted a review decision" in normalized
+    assert "table-owner update of a review decision was accepted" in normalized
+    assert "table-owner delete of a review decision was accepted" in normalized
 
 
 @pytest.mark.parametrize(
