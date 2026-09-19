@@ -21,6 +21,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('audit', 'ingestion_runs', 'r'),
         ('audit', 'ingestion_run_artifacts', 'r'),
         ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+        ('audit', 'review_decisions', 'r'),
+        ('audit', 'review_decisions_review_decision_id_seq', 'S'),
+        ('audit', 'effective_review_decisions', 'v'),
         ('registry', 'institutions', 'r'),
         ('registry', 'institution_definition_versions', 'r'),
         ('registry', 'regulatory_registrations', 'r'),
@@ -62,6 +65,9 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         ('audit', 'ingestion_runs', 'r'),
         ('audit', 'ingestion_run_artifacts', 'r'),
         ('audit', 'ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+        ('audit', 'review_decisions', 'r'),
+        ('audit', 'review_decisions_review_decision_id_seq', 'S'),
+        ('audit', 'effective_review_decisions', 'v'),
         ('registry', 'institutions', 'r'),
         ('registry', 'institution_definition_versions', 'r'),
         ('registry', 'regulatory_registrations', 'r'),
@@ -313,11 +319,14 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
         )
         and (
             select
-                count(*) = 3
+                count(*) = 6
                 and bool_and((relation.relname, relation.relkind::text) in (
                     ('ingestion_runs', 'r'),
                     ('ingestion_run_artifacts', 'r'),
-                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+                    ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+                    ('review_decisions', 'r'),
+                    ('review_decisions_review_decision_id_seq', 'S'),
+                    ('effective_review_decisions', 'v')
                 ))
             from pg_catalog.pg_class relation
             join pg_catalog.pg_namespace namespace
@@ -1381,14 +1390,17 @@ with audit_columns_gate as (
         ) as valid
 ), audit_boundary_gate as (
     select
-        count(*) = 3
+        count(*) = 6
         and bool_and((relation.relname, relation.relkind::text) in (
             ('ingestion_runs', 'r'),
             ('ingestion_run_artifacts', 'r'),
-            ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S')
+            ('ingestion_run_artifacts_ingestion_run_artifact_id_seq', 'S'),
+            ('review_decisions', 'r'),
+            ('review_decisions_review_decision_id_seq', 'S'),
+            ('effective_review_decisions', 'v')
         ))
         and pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('audit.review_decisions') is null
+        and pg_catalog.to_regclass('audit.review_decisions') is not null
         and pg_catalog.to_regclass('registry.institutions') is not null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
     from pg_catalog.pg_class relation
@@ -3740,8 +3752,7 @@ with pr15_columns_gate as (
       and relation.relname = 'reported_facts'
 ), pr15_boundary_gate as (
     select
-        pg_catalog.to_regclass('audit.review_decisions') is null
-        and pg_catalog.to_regclass('audit.quality_issues') is null
+        pg_catalog.to_regclass('audit.quality_issues') is null
         and pg_catalog.to_regclass('serving.current_observed_facts') is null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is null
         and pg_catalog.to_regclass('semantic.canonical_concepts') is null
@@ -3794,6 +3805,473 @@ cross join pr15_boundary_gate
 do $$
 begin
     raise exception 'PR15 reported fact schema gate failed.';
+end
+$$;
+\endif
+
+with pr15a_columns_gate as (
+    select
+        count(*) = 11
+        and (
+            select count(*) = 11
+            from information_schema.columns
+            where table_schema = 'audit'
+              and table_name = 'review_decisions'
+        ) as valid
+    from (values
+        ('review_decision_id', 'bigint', 'NO'),
+        ('reported_fact_id', 'bigint', 'NO'),
+        ('decision', 'text', 'NO'),
+        ('decided_at', 'timestamp with time zone', 'NO'),
+        ('actor_kind', 'text', 'NO'),
+        ('human_actor_key', 'text', 'YES'),
+        ('policy_implementation_key', 'text', 'YES'),
+        ('policy_implementation_version', 'text', 'YES'),
+        ('policy_git_sha', 'text', 'YES'),
+        ('reason', 'text', 'NO'),
+        ('corrects_review_decision_id', 'bigint', 'YES')
+    ) as expected(column_name, data_type, is_nullable)
+    join information_schema.columns actual
+      on actual.table_schema = 'audit'
+     and actual.table_name = 'review_decisions'
+     and actual.column_name = expected.column_name
+     and actual.data_type = expected.data_type
+     and actual.is_nullable = expected.is_nullable
+), pr15a_identity_gate as (
+    select
+        actual.is_identity = 'YES'
+        and actual.identity_generation = 'ALWAYS'
+        and actual.column_default is null
+        and (
+            select column_default is null and is_generated = 'NEVER'
+            from information_schema.columns
+            where table_schema = 'audit'
+              and table_name = 'review_decisions'
+              and column_name = 'decided_at'
+        ) as valid
+    from information_schema.columns actual
+    where actual.table_schema = 'audit'
+      and actual.table_name = 'review_decisions'
+      and actual.column_name = 'review_decision_id'
+), pr15a_relationship_gate as (
+    select count(*) = 4 as valid
+    from (values
+        ('review_decisions_pkey', 'p', 'PRIMARY KEY (review_decision_id)'),
+        ('review_decisions_fact_fkey', 'f',
+            'FOREIGN KEY (reported_fact_id) REFERENCES reported.reported_facts(reported_fact_id)'),
+        ('review_decisions_id_fact_key', 'u',
+            'UNIQUE (review_decision_id, reported_fact_id)'),
+        ('review_decisions_correction_fkey', 'f',
+            'FOREIGN KEY (corrects_review_decision_id, reported_fact_id) REFERENCES audit.review_decisions(review_decision_id, reported_fact_id)')
+    ) as expected(constraint_name, constraint_kind, constraint_definition)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = expected.constraint_kind::"char"
+     and actual.conrelid = 'audit.review_decisions'::regclass
+     and pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
+), pr15a_check_gate as (
+    select
+        count(*) = 9
+        and not exists (
+            select 1
+            from pg_catalog.pg_constraint
+            where conrelid = 'audit.review_decisions'::regclass
+              and contype = 'u'
+              and pg_catalog.pg_get_constraintdef(oid)
+                  like '%corrects_review_decision_id%'
+        ) as valid
+    from (values
+        ('review_decisions_decision_valid'),
+        ('review_decisions_actor_kind_valid'),
+        ('review_decisions_actor_shape_valid'),
+        ('review_decisions_human_actor_key_valid'),
+        ('review_decisions_policy_key_valid'),
+        ('review_decisions_policy_version_valid'),
+        ('review_decisions_policy_git_sha_full'),
+        ('review_decisions_reason_valid'),
+        ('review_decisions_no_self_correction')
+    ) as expected(constraint_name)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = 'c'
+     and actual.conrelid = 'audit.review_decisions'::regclass
+), pr15a_vocabulary_gate as (
+    select
+        (
+            select bool_and(definition like '%' || required_token || '%')
+            from pg_catalog.pg_constraint
+            cross join lateral (
+                select pg_catalog.pg_get_constraintdef(oid) as definition
+            ) as rendered
+            cross join unnest(array['ACCEPT', 'REJECT', 'REVOKE']) as required_token
+            where conrelid = 'audit.review_decisions'::regclass
+              and conname = 'review_decisions_decision_valid'
+        )
+        and (
+            select bool_and(definition like '%' || required_token || '%')
+            from pg_catalog.pg_constraint
+            cross join lateral (
+                select pg_catalog.pg_get_constraintdef(oid) as definition
+            ) as rendered
+            cross join unnest(array['HUMAN', 'SYSTEM_POLICY']) as required_token
+            where conrelid = 'audit.review_decisions'::regclass
+              and conname = 'review_decisions_actor_kind_valid'
+        )
+        and (
+            select bool_and(definition like '%' || required_token || '%')
+            from pg_catalog.pg_constraint
+            cross join lateral (
+                select pg_catalog.pg_get_constraintdef(oid) as definition
+            ) as rendered
+            cross join unnest(array['btrim', '512', 'cntrl']) as required_token
+            where conrelid = 'audit.review_decisions'::regclass
+              and conname = 'review_decisions_reason_valid'
+        )
+        and (
+            select bool_and(definition like '%' || required_token || '%')
+            from pg_catalog.pg_constraint
+            cross join lateral (
+                select pg_catalog.pg_get_constraintdef(oid) as definition
+            ) as rendered
+            cross join unnest(array[
+                '[a-f0-9]{40}', '[a-f0-9]{64}'
+            ]) as required_token
+            where conrelid = 'audit.review_decisions'::regclass
+              and conname = 'review_decisions_policy_git_sha_full'
+        ) as valid
+), pr15a_index_gate as (
+    select
+        count(*) = 2
+        and bool_and(index_relation.relname in (
+            'review_decisions_fact_timeline_idx',
+            'review_decisions_corrects_idx'
+        ))
+        and bool_and(not index_definition.indisunique)
+        and (
+            select not index_definition.indisunique
+                and index_definition.indpred is not null
+            from pg_catalog.pg_class index_relation
+            join pg_catalog.pg_index index_definition
+              on index_definition.indexrelid = index_relation.oid
+            where index_relation.relname = 'review_decisions_corrects_idx'
+        )
+        and (
+            select pg_catalog.pg_get_indexdef(index_definition.indexrelid)
+                like '%(reported_fact_id, decided_at DESC, review_decision_id DESC)%'
+            from pg_catalog.pg_class index_relation
+            join pg_catalog.pg_index index_definition
+              on index_definition.indexrelid = index_relation.oid
+            where index_relation.relname = 'review_decisions_fact_timeline_idx'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class index_relation
+            join pg_catalog.pg_index index_definition
+              on index_definition.indexrelid = index_relation.oid
+            join pg_catalog.pg_am access_method
+              on access_method.oid = index_relation.relam
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'audit'
+              and table_relation.relname = 'review_decisions'
+              and access_method.amname <> 'btree'
+        ) as valid
+    from pg_catalog.pg_index index_definition
+    join pg_catalog.pg_class index_relation
+      on index_relation.oid = index_definition.indexrelid
+    join pg_catalog.pg_class table_relation
+      on table_relation.oid = index_definition.indrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = table_relation.relnamespace
+    where namespace.nspname = 'audit'
+      and table_relation.relname = 'review_decisions'
+      and not exists (
+          select 1
+          from pg_catalog.pg_constraint backing_constraint
+          where backing_constraint.conindid = index_definition.indexrelid
+      )
+), pr15a_object_gate as (
+    select
+        (
+            select count(*) = 2 and bool_and(not trigger.tgisinternal)
+            from pg_catalog.pg_trigger trigger
+            join pg_catalog.pg_class relation on relation.oid = trigger.tgrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'audit'
+              and relation.relname = 'review_decisions'
+              and not trigger.tgisinternal
+              and trigger.tgname in (
+                  'review_decisions_enforce_insert',
+                  'review_decisions_append_only'
+              )
+        )
+        and (
+            select count(*) = 3
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'audit'
+              and function.proname in (
+                  'enforce_review_decision_insert',
+                  'reject_review_decision_mutation',
+                  'effective_review_decisions_as_of'
+              )
+              and not function.prosecdef
+        )
+        and (
+            select function.provolatile = 's' and function.prolang = (
+                select oid from pg_catalog.pg_language where lanname = 'sql'
+            )
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'audit'
+              and function.proname = 'effective_review_decisions_as_of'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'audit'
+              and function.prosecdef
+        )
+        and exists (
+            select 1
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            cross join lateral unnest(
+                coalesce(relation.reloptions, array[]::text[])
+            ) as view_option
+            where namespace.nspname = 'audit'
+              and relation.relname = 'effective_review_decisions'
+              and relation.relkind = 'v'
+              and lower(view_option) in (
+                  'security_invoker=true',
+                  'security_invoker=on',
+                  'security_invoker=1'
+              )
+        ) as valid
+), pr15a_access_gate as (
+    select
+        relation.relrowsecurity
+        and not exists (
+            select 1
+            from pg_catalog.pg_policies
+            where schemaname = 'audit'
+              and tablename in ('review_decisions', 'effective_review_decisions')
+        )
+        and not exists (select 1 from audit.review_decisions)
+        and pg_catalog.has_table_privilege(
+            'service_role', 'audit.review_decisions', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role', 'audit.review_decisions',
+            'UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and (
+            select bool_and(pg_catalog.has_column_privilege(
+                'service_role', 'audit.review_decisions', writable_column, 'INSERT'
+            ))
+            from unnest(array[
+                'reported_fact_id',
+                'decision',
+                'decided_at',
+                'actor_kind',
+                'human_actor_key',
+                'policy_implementation_key',
+                'policy_implementation_version',
+                'policy_git_sha',
+                'reason',
+                'corrects_review_decision_id'
+            ]) as writable_column
+        )
+        and not pg_catalog.has_column_privilege(
+            'service_role', 'audit.review_decisions', 'review_decision_id', 'INSERT'
+        )
+        and pg_catalog.has_sequence_privilege(
+            'service_role', 'audit.review_decisions_review_decision_id_seq', 'USAGE'
+        )
+        and not pg_catalog.has_sequence_privilege(
+            'service_role',
+            'audit.review_decisions_review_decision_id_seq',
+            'SELECT, UPDATE'
+        )
+        and pg_catalog.has_table_privilege(
+            'service_role', 'audit.effective_review_decisions', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role', 'audit.effective_review_decisions',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and pg_catalog.has_function_privilege(
+            'service_role',
+            'audit.effective_review_decisions_as_of(timestamptz)',
+            'EXECUTE'
+        )
+        and (
+            select bool_and(not pg_catalog.has_table_privilege(
+                role_name,
+                audit_relation,
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array[
+                'audit.review_decisions',
+                'audit.effective_review_decisions'
+            ]) as audit_relation
+        )
+        and (
+            select bool_and(not pg_catalog.has_function_privilege(
+                role_name, function_signature, 'EXECUTE'
+            ))
+            from unnest(array['anon', 'authenticated', 'service_role']) as role_name
+            cross join unnest(array[
+                'audit.enforce_review_decision_insert()',
+                'audit.reject_review_decision_mutation()'
+            ]) as function_signature
+        )
+        and (
+            select bool_and(not pg_catalog.has_function_privilege(
+                role_name,
+                'audit.effective_review_decisions_as_of(timestamptz)',
+                'EXECUTE'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class target
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = target.relnamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(
+                    target.relacl,
+                    acldefault(
+                        (
+                            case target.relkind
+                                when 'S' then 's'
+                                else 'r'
+                            end
+                        )::"char",
+                        target.relowner
+                    )
+                )
+            ) as target_acl
+            where namespace.nspname = 'audit'
+              and target.relname in (
+                  'review_decisions',
+                  'review_decisions_review_decision_id_seq',
+                  'effective_review_decisions'
+              )
+              and target_acl.grantee = 0
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(function.proacl, acldefault('f', function.proowner))
+            ) as function_acl
+            where namespace.nspname = 'audit'
+              and function.proname in (
+                  'enforce_review_decision_insert',
+                  'reject_review_decision_mutation',
+                  'effective_review_decisions_as_of'
+              )
+              and function_acl.grantee = 0
+        ) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'audit'
+      and relation.relname = 'review_decisions'
+), pr15a_boundary_gate as (
+    select
+        pg_catalog.to_regclass('audit.review_decisions') is not null
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('serving.current_observed_facts') is null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('metrics.metric_definitions') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname in ('semantic', 'metrics', 'serving')
+        )
+        and not exists (
+            select 1
+            from information_schema.columns
+            where table_schema in ('audit', 'reported')
+              and column_name in (
+                  'current_observed',
+                  'current_publishable',
+                  'observed_as_of',
+                  'publishable_as_of',
+                  'quality_issue_id',
+                  'review_status',
+                  'idempotency_key',
+                  'request_key'
+              )
+        ) as valid
+)
+select
+    pr15a_columns_gate.valid as pr15a_columns_gate,
+    pr15a_identity_gate.valid as pr15a_identity_gate,
+    pr15a_relationship_gate.valid as pr15a_relationship_gate,
+    pr15a_check_gate.valid as pr15a_check_gate,
+    pr15a_vocabulary_gate.valid as pr15a_vocabulary_gate,
+    pr15a_index_gate.valid as pr15a_index_gate,
+    pr15a_object_gate.valid as pr15a_object_gate,
+    pr15a_access_gate.valid as pr15a_access_gate,
+    pr15a_boundary_gate.valid as pr15a_boundary_gate,
+    (
+        pr15a_columns_gate.valid
+        and pr15a_identity_gate.valid
+        and pr15a_relationship_gate.valid
+        and pr15a_check_gate.valid
+        and pr15a_vocabulary_gate.valid
+        and pr15a_index_gate.valid
+        and pr15a_object_gate.valid
+        and pr15a_access_gate.valid
+        and pr15a_boundary_gate.valid
+    ) as pr15a_schema_passed
+from pr15a_columns_gate
+cross join pr15a_identity_gate
+cross join pr15a_relationship_gate
+cross join pr15a_check_gate
+cross join pr15a_vocabulary_gate
+cross join pr15a_index_gate
+cross join pr15a_object_gate
+cross join pr15a_access_gate
+cross join pr15a_boundary_gate
+\gset
+
+\echo PR15a gate columns: :pr15a_columns_gate
+\echo PR15a gate identity: :pr15a_identity_gate
+\echo PR15a gate relationships: :pr15a_relationship_gate
+\echo PR15a gate checks: :pr15a_check_gate
+\echo PR15a gate vocabulary: :pr15a_vocabulary_gate
+\echo PR15a gate indexes: :pr15a_index_gate
+\echo PR15a gate objects: :pr15a_object_gate
+\echo PR15a gate access: :pr15a_access_gate
+\echo PR15a gate boundary: :pr15a_boundary_gate
+\echo PR15a aggregate schema: :pr15a_schema_passed
+
+\if :pr15a_schema_passed
+\echo 'PR15a review decision schema contract passed.'
+\else
+\echo 'PR15a review decision schema contract failed.'
+do $$
+begin
+    raise exception 'PR15a review decision schema gate failed.';
 end
 $$;
 \endif
@@ -5181,6 +5659,967 @@ end
 $$;
 \endif
 
+insert into reported.reported_facts (
+    regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+    reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+    source_definition_version, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, period_kind, period_end, unit_code,
+    raw_value, parsed_value, locator_kind, source_locator, first_observed_at
+)
+select
+    '00000000-0000-4000-8000-000000000722',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000751',
+    '00000000-0000-4000-8000-000000000011',
+    '00000000-0000-4000-8000-000000000761',
+    '00000000-0000-4000-8000-000000000201',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000801',
+    1, 'test_parser', '1', repeat('a', 64),
+    'instant', '2026-06-30', 'MXN',
+    locator_row::text, locator_row, 'csv',
+    jsonb_build_object('row', locator_row, 'column', 'C'),
+    '2026-09-19T14:00:00Z'
+from pg_catalog.generate_series(301, 314) as locator_row;
+
+select
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 301, "column": "C"}'::jsonb
+    ) as pr15a_fact_accept,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 302, "column": "C"}'::jsonb
+    ) as pr15a_fact_reject,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 303, "column": "C"}'::jsonb
+    ) as pr15a_fact_pending,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 304, "column": "C"}'::jsonb
+    ) as pr15a_fact_accept_revoke,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 305, "column": "C"}'::jsonb
+    ) as pr15a_fact_reject_revoke,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 306, "column": "C"}'::jsonb
+    ) as pr15a_fact_accept_reject,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 307, "column": "C"}'::jsonb
+    ) as pr15a_fact_timeline,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 308, "column": "C"}'::jsonb
+    ) as pr15a_fact_tie,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 309, "column": "C"}'::jsonb
+    ) as pr15a_fact_correction,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 310, "column": "C"}'::jsonb
+    ) as pr15a_fact_cross,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 311, "column": "C"}'::jsonb
+    ) as pr15a_fact_self,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 312, "column": "C"}'::jsonb
+    ) as pr15a_fact_policy,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 313, "column": "C"}'::jsonb
+    ) as pr15a_fact_reject_accept,
+    (
+        select reported_fact_id from reported.reported_facts
+        where source_locator = '{"row": 314, "column": "C"}'::jsonb
+    ) as pr15a_fact_service,
+    (
+        select reported_fact_id from reported.reported_facts
+        where predecessor_reported_fact_id = :pr15_root_id
+          and supersession_reason = 'SOURCE_REVISION'
+          and source_artifact_id = '00000000-0000-4000-8000-000000000202'
+    ) as pr15a_sibling_b,
+    (
+        select reported_fact_id from reported.reported_facts
+        where predecessor_reported_fact_id = :pr15_root_id
+          and supersession_reason = 'SOURCE_REVISION'
+          and source_artifact_id = '00000000-0000-4000-8000-000000000203'
+    ) as pr15a_sibling_c
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_accept, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Synthetic first acceptance.'
+)
+returning review_decision_id as pr15a_accept_decision_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_reject, 'REJECT', '2026-07-01T01:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Synthetic first rejection without a prior acceptance.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_accept_revoke, 'ACCEPT', '2026-07-02T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Acceptance that is later revoked.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_accept_revoke, 'REVOKE', '2026-07-03T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Prospective withdrawal of the effective acceptance.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_reject_revoke, 'REJECT', '2026-07-02T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Rejection that must not be revocable.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_accept_reject, 'ACCEPT', '2026-07-02T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Acceptance later replaced by an explicit rejection.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_accept_reject, 'REJECT', '2026-07-04T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Explicit rejection after acceptance.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_timeline, 'ACCEPT', '2026-07-10T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Timeline counterexample acceptance.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_timeline, 'REVOKE', '2026-07-20T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Timeline counterexample revocation.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_tie, 'ACCEPT', '2026-07-05T12:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Equal-instant acceptance decided first.'
+)
+returning review_decision_id as pr15a_tie_first_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_tie, 'REJECT', '2026-07-05T12:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Equal-instant rejection decided second.'
+)
+returning review_decision_id as pr15a_tie_second_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_correction, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Original acceptance that is later corrected twice.'
+)
+returning review_decision_id as pr15a_correction_root_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+    corrects_review_decision_id
+)
+values (
+    :pr15a_fact_correction, 'REJECT', '2026-07-02T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'First correction of the original acceptance.', :pr15a_correction_root_id
+)
+returning review_decision_id as pr15a_correction_first_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+    corrects_review_decision_id
+)
+values (
+    :pr15a_fact_correction, 'ACCEPT', '2026-07-03T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Correction of the first correction.', :pr15a_correction_first_id
+)
+returning review_decision_id as pr15a_correction_second_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+    corrects_review_decision_id
+)
+values (
+    :pr15a_fact_correction, 'REJECT', '2026-07-04T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Second later correction pointing at the same original event.',
+    :pr15a_correction_root_id
+)
+returning review_decision_id as pr15a_correction_third_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_cross, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+    'Acceptance on an unrelated fact.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, policy_implementation_key,
+    policy_implementation_version, policy_git_sha, reason
+)
+values (
+    :pr15a_fact_policy, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+    'clean_fact_auto_accept', '3', repeat('d', 40),
+    'Versioned system policy acceptance of an unambiguous fact.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_reject_accept, 'REJECT', '2026-07-01T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Initial rejection that is later superseded.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_reject_accept, 'ACCEPT', '2026-07-02T00:00:00Z', 'HUMAN',
+    'lead_reviewer', 'Acceptance recorded after an earlier rejection.'
+);
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values
+    (
+        :pr15a_sibling_b, 'ACCEPT', '2026-07-06T00:00:00Z', 'HUMAN', 'lead_reviewer',
+        'Sibling successor B is accepted.'
+    ),
+    (
+        :pr15a_sibling_c, 'ACCEPT', '2026-07-06T00:00:00Z', 'HUMAN', 'lead_reviewer',
+        'Sibling successor C is also accepted; PR15a asserts no arbitration.'
+    );
+
+do $$
+declare
+    rejected boolean;
+    fact_pending bigint;
+    fact_reject_revoke bigint;
+    fact_accept_revoke bigint;
+    fact_accept_reject bigint;
+    fact_timeline bigint;
+    fact_correction bigint;
+    fact_cross bigint;
+    fact_self bigint;
+    correction_root_id bigint;
+begin
+    select reported_fact_id into strict fact_pending
+    from reported.reported_facts
+    where source_locator = '{"row": 303, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_reject_revoke
+    from reported.reported_facts
+    where source_locator = '{"row": 305, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_accept_revoke
+    from reported.reported_facts
+    where source_locator = '{"row": 304, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_accept_reject
+    from reported.reported_facts
+    where source_locator = '{"row": 306, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_timeline
+    from reported.reported_facts
+    where source_locator = '{"row": 307, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_correction
+    from reported.reported_facts
+    where source_locator = '{"row": 309, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_cross
+    from reported.reported_facts
+    where source_locator = '{"row": 310, "column": "C"}'::jsonb;
+
+    select reported_fact_id into strict fact_self
+    from reported.reported_facts
+    where source_locator = '{"row": 311, "column": "C"}'::jsonb;
+
+    select review_decision_id into strict correction_root_id
+    from audit.review_decisions
+    where reported_fact_id = fact_correction
+      and decided_at = '2026-07-01T00:00:00Z';
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'APPROVE', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Unapproved decision vocabulary.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unapproved review decision vocabulary was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'REVOKE', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'First event may not be a revocation.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'first-event REVOKE was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', pg_catalog.clock_timestamp() + interval '1 hour',
+            'HUMAN', 'lead_reviewer', 'Future decision time must be rejected.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'future decided_at was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_reject_revoke, 'REVOKE', '2026-07-03T00:00:00Z', 'HUMAN',
+            'lead_reviewer', 'REVOKE after REJECT must be rejected.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'REVOKE after REJECT was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_accept_revoke, 'REVOKE', '2026-07-04T00:00:00Z', 'HUMAN',
+            'lead_reviewer', 'REVOKE after REVOKE must be rejected.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'REVOKE after REVOKE was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_accept_reject, 'REVOKE', '2026-07-05T00:00:00Z', 'HUMAN',
+            'lead_reviewer', 'REVOKE after ACCEPT then REJECT must be rejected.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'REVOKE after ACCEPT then REJECT was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_timeline, 'REJECT', '2026-07-15T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Backdated event behind the current head must be rejected.'
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'decision behind the current head was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+            corrects_review_decision_id
+        ) values (
+            fact_correction, 'ACCEPT', '2026-07-02T12:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Backdated correction must be rejected by the monotonic guard.',
+            correction_root_id
+        );
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'backdated correction behind the current head was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+            corrects_review_decision_id
+        ) values (
+            fact_cross, 'REJECT', '2026-07-05T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'A correction may not reference another fact timeline.',
+            correction_root_id
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'cross-fact correction was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            review_decision_id, reported_fact_id, decision, decided_at, actor_kind,
+            human_actor_key, reason, corrects_review_decision_id
+        ) overriding system value values (
+            987654321, fact_self, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN',
+            'lead_reviewer', 'A decision may not correct itself.', 987654321
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'self-correction was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN',
+            'HUMAN actor requires an actor key.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'HUMAN decision without an actor key was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key,
+            policy_implementation_key, policy_implementation_version, policy_git_sha,
+            reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'clean_fact_auto_accept', '3', repeat('d', 40),
+            'HUMAN actor must not carry policy provenance.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'HUMAN decision with policy provenance was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind,
+            policy_implementation_version, policy_git_sha, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+            '3', repeat('d', 40),
+            'SYSTEM_POLICY requires an implementation key.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'SYSTEM_POLICY decision without an implementation key was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind,
+            policy_implementation_key, policy_git_sha, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+            'clean_fact_auto_accept', repeat('d', 40),
+            'SYSTEM_POLICY requires an implementation version.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'SYSTEM_POLICY decision without a version was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind,
+            policy_implementation_key, policy_implementation_version, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+            'clean_fact_auto_accept', '3',
+            'SYSTEM_POLICY requires a Git SHA.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'SYSTEM_POLICY decision without a Git SHA was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key,
+            policy_implementation_key, policy_implementation_version, policy_git_sha,
+            reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+            'lead_reviewer', 'clean_fact_auto_accept', '3', repeat('d', 40),
+            'SYSTEM_POLICY must not carry a human actor key.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'SYSTEM_POLICY decision with a human actor key was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind,
+            policy_implementation_key, policy_implementation_version, policy_git_sha,
+            reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'SYSTEM_POLICY',
+            'clean_fact_auto_accept', '3', 'not-a-sha',
+            'A malformed policy Git SHA must be rejected.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'malformed policy Git SHA was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'Lead Reviewer',
+            'A malformed human actor key must be rejected.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'malformed human actor key was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            null
+        );
+    exception when not_null_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'null review reason was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            '   '
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank review reason was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Reason with a control' || chr(10) || 'character.'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'review reason with a control character was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+        ) values (
+            fact_pending, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            repeat('r', 513)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'oversized review reason was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update audit.review_decisions
+            set reason = 'owner mutated'$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'table-owner UPDATE of a review decision was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from audit.review_decisions$statement$;
+    exception when raise_exception then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'table-owner DELETE of a review decision was accepted';
+    end if;
+end
+$$;
+
+set local role service_role;
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_service, 'ACCEPT', '2026-07-01T00:00:00Z', 'HUMAN', 'service_reviewer',
+    'Runtime service_role acceptance.'
+)
+returning review_decision_id as pr15a_service_decision_id
+\gset
+
+insert into audit.review_decisions (
+    reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+)
+values (
+    :pr15a_fact_service, 'REVOKE', '2026-07-02T00:00:00Z', 'HUMAN', 'service_reviewer',
+    'Runtime service_role revocation that requires head visibility.'
+);
+
+select count(*) >= 1 as pr15a_service_select_passed
+from audit.review_decisions
+\gset
+
+select count(*) >= 1 as pr15a_service_view_select_passed
+from audit.effective_review_decisions
+\gset
+
+do $$
+declare
+    rejected boolean;
+begin
+    rejected := false;
+    begin
+        execute $statement$update audit.review_decisions
+            set reason = 'service mutated'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role updated a review decision';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$delete from audit.review_decisions$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'service_role deleted a review decision';
+    end if;
+end
+$$;
+
+reset role;
+
+select
+    (
+        select count(*) = 1
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_accept
+          and decision = 'ACCEPT'
+          and review_decision_id = :pr15a_accept_decision_id
+    )
+    and (
+        select decision = 'REJECT'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_reject
+    )
+    and not exists (
+        select 1
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_pending
+    )
+    and not exists (
+        select 1
+        from audit.effective_review_decisions_as_of(pg_catalog.clock_timestamp())
+        where reported_fact_id = :pr15a_fact_pending
+    )
+    and (
+        select decision = 'REVOKE'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_accept_revoke
+    )
+    and (
+        select decision = 'REJECT'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_accept_reject
+    )
+    and (
+        select decision = 'ACCEPT'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_reject_accept
+    )
+    and (
+        select decision = 'ACCEPT'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_policy
+    )
+    and (
+        select decision = 'REVOKE'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_service
+    )
+    and (
+        select
+            decision = 'REJECT'
+            and review_decision_id = :pr15a_tie_second_id
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_tie
+    )
+    and :pr15a_tie_second_id > :pr15a_tie_first_id
+    and (
+        select bool_and(decision = 'ACCEPT')
+        from audit.effective_review_decisions
+        where reported_fact_id in (:pr15a_sibling_b, :pr15a_sibling_c)
+    )
+    and (
+        select count(*) = 2
+        from audit.effective_review_decisions
+        where reported_fact_id in (:pr15a_sibling_b, :pr15a_sibling_c)
+    )
+    and (
+        select decision = 'ACCEPT'
+        from audit.effective_review_decisions_as_of('2026-07-15T00:00:00Z')
+        where reported_fact_id = :pr15a_fact_timeline
+    )
+    and (
+        select decision = 'REVOKE'
+        from audit.effective_review_decisions_as_of('2026-07-25T00:00:00Z')
+        where reported_fact_id = :pr15a_fact_timeline
+    )
+    and not exists (
+        select 1
+        from audit.effective_review_decisions_as_of('2026-07-05T00:00:00Z')
+        where reported_fact_id = :pr15a_fact_timeline
+    )
+    and (
+        select
+            review_decision_id = :pr15a_correction_root_id
+            and decision = 'ACCEPT'
+        from audit.effective_review_decisions_as_of('2026-07-01T12:00:00Z')
+        where reported_fact_id = :pr15a_fact_correction
+    )
+    and (
+        select
+            review_decision_id = :pr15a_correction_first_id
+            and decision = 'REJECT'
+        from audit.effective_review_decisions_as_of('2026-07-02T12:00:00Z')
+        where reported_fact_id = :pr15a_fact_correction
+    )
+    and (
+        select
+            review_decision_id = :pr15a_correction_third_id
+            and decision = 'REJECT'
+        from audit.effective_review_decisions
+        where reported_fact_id = :pr15a_fact_correction
+    )
+    and (
+        select count(*) = 2
+        from audit.review_decisions
+        where corrects_review_decision_id = :pr15a_correction_root_id
+    )
+    and (
+        select count(*) = 1
+        from audit.review_decisions
+        where corrects_review_decision_id = :pr15a_correction_first_id
+          and review_decision_id = :pr15a_correction_second_id
+    )
+    and (
+        select
+            decision = 'ACCEPT'
+            and decided_at = '2026-07-01T00:00:00Z'::timestamptz
+            and reason = 'Original acceptance that is later corrected twice.'
+            and corrects_review_decision_id is null
+        from audit.review_decisions
+        where review_decision_id = :pr15a_correction_root_id
+    )
+    and (
+        select count(*) = 4
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_correction
+    )
+    and (
+        select count(*) = 1
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_reject_revoke
+    )
+    and (
+        select count(*) = 1
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_cross
+    )
+    and not exists (
+        select 1
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_self
+    )
+    and not exists (
+        select 1
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_pending
+    )
+    and (
+        select count(*) = 2
+        from audit.review_decisions
+        where reported_fact_id = :pr15a_fact_service
+    )
+    and :'pr15a_service_decision_id'::bigint is not null
+    and :'pr15a_service_select_passed'::boolean
+    and :'pr15a_service_view_select_passed'::boolean
+    and not exists (
+        select
+            current_view.reported_fact_id,
+            current_view.review_decision_id,
+            current_view.decision,
+            current_view.decided_at
+        from audit.effective_review_decisions as current_view
+        except
+        select
+            cutoff_view.reported_fact_id,
+            cutoff_view.review_decision_id,
+            cutoff_view.decision,
+            cutoff_view.decided_at
+        from audit.effective_review_decisions_as_of(
+            pg_catalog.clock_timestamp()
+        ) as cutoff_view
+    )
+    and not exists (
+        select
+            cutoff_view.reported_fact_id,
+            cutoff_view.review_decision_id,
+            cutoff_view.decision,
+            cutoff_view.decided_at
+        from audit.effective_review_decisions_as_of(
+            pg_catalog.clock_timestamp()
+        ) as cutoff_view
+        except
+        select
+            current_view.reported_fact_id,
+            current_view.review_decision_id,
+            current_view.decision,
+            current_view.decided_at
+        from audit.effective_review_decisions as current_view
+    ) as pr15a_behavior_passed
+\gset
+
+\if :pr15a_behavior_passed
+\echo 'PR15a review decision behavioral smoke passed.'
+\else
+\echo 'PR15a review decision behavioral smoke failed.'
+do $$
+begin
+    raise exception 'PR15a review decision behavioral gate failed.';
+end
+$$;
+\endif
+
 \if :pr11_behavior_passed
 \echo 'PR11 evidence catalog behavioral smoke passed.'
 \else
@@ -5278,6 +6717,23 @@ select
 do $$
 begin
     raise exception 'PR15 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    not exists (select 1 from audit.review_decisions)
+    and not exists (select 1 from audit.effective_review_decisions)
+    as pr15a_rollback_passed
+\gset
+
+\if :pr15a_rollback_passed
+\echo 'PR15a smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR15a smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR15a rollback cleanliness gate failed.';
 end
 $$;
 \endif

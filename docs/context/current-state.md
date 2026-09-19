@@ -15,7 +15,7 @@ not a changelog and does not make the roadmap executable.
 - General state: bootstrap/MVP foundation and PR1–PR15 are complete. PR10, PR11, PR13, PR14, and
   PR15 are merged, deployed, and independently verified. PR12 is merged and complete, and its
   production artifact Storage is provisioned and verified. PR15a `feat/review-decision-events` is
-  NEXT and has not started.
+  IMPLEMENTED on this feature branch; it is NOT merged and NOT deployed.
 
 ## Implemented now
 
@@ -57,7 +57,18 @@ not a changelog and does not make the roadmap executable.
   private exact regulatory fact table with composite source/identity/provenance FKs, database-owned
   SHA-256 locator and fact hashes, instant/duration economic time, raw value plus exact numeric
   parsed value, and append-only revision lineage that allows multiple observed successors. The
-  production table currently has zero rows. Review decisions remain PR15a work.
+  production table currently has zero rows.
+- The feature-branch PR15a review-decision schema implements `audit.review_decisions`: an
+  append-only private event log of exactly 11 columns, with the decision vocabulary `ACCEPT`,
+  `REJECT`, and `REVOKE`, the actor vocabulary `HUMAN` and `SYSTEM_POLICY`, a mandatory single
+  `reason` text column, a strictly monotonic per-fact `(decided_at, review_decision_id)` event
+  timeline enforced under a per-fact advisory lock, a `REVOKE` precondition requiring an
+  effective `ACCEPT` head event, and audit-only correction lineage constrained to the same fact
+  by a composite foreign key. Review authority is never a mutable status on a reported fact.
+  Effective review state is read through the `audit.effective_review_decisions` view and the
+  `audit.effective_review_decisions_as_of(timestamptz)` function; a fact with no event is
+  pending. PR15a deliberately adds no idempotency or request key, no quality-issue objects, and
+  no fact-level current/publishable semantics. These objects exist only on the feature branch.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -87,7 +98,8 @@ not a changelog and does not make the roadmap executable.
 VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13
 MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
 COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE;
-PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
+PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A IMPLEMENTED ON FEATURE BRANCH /
+NOT MERGED / NOT DEPLOYED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -98,11 +110,13 @@ and Git/YAML editorial authority with Python as executable authority.
 - Schemas `core`, `ops`, and `analytics` are legacy and frozen for the v1 transition.
 - `public.bank_metrics` is an existing legacy derived surface.
 - The legacy initial migration remains immutable.
-- The repository contains exactly six migrations. They define the seven v1 responsibility
+- The repository contains exactly seven migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
-  identity/taxonomy schema, and the deployed PR15 reported-fact schema.
-  Production has exactly six migrations. No pending production migration remains. No v1 public
+  identity/taxonomy schema, the deployed PR15 reported-fact schema, and the undeployed
+  feature-branch PR15a review-decision schema.
+  Production has exactly six migrations. Exactly one repository migration,
+  `20260919180000_review_decision_events.sql`, is implemented and not deployed. No v1 public
   contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
@@ -159,10 +173,15 @@ and Git/YAML editorial authority with Python as executable authority.
   exactly 28 columns and zero rows. RLS is enabled with zero policies. `service_role` has SELECT
   and narrow column-level INSERT only, with no UPDATE or DELETE. The two PR15 functions are not
   SECURITY DEFINER. The predecessor column is not unique, so multiple observed successors remain
-  possible. PR10–PR14 and legacy objects remain intact and empty. PR15a+ implementation objects
-  remain absent: `audit.review_decisions` is absent, PR16 current/as-of objects are absent,
-  `public.regulatory_bank_metrics_v1` remains absent, and later `semantic` / `metrics` /
-  `serving` implementation relations remain absent.
+  possible. PR10–PR14 and legacy objects remain intact and empty. In production, PR15a+
+  implementation objects remain absent: `audit.review_decisions` is absent,
+  PR16 current/as-of objects are absent, `public.regulatory_bank_metrics_v1` remains absent,
+  and later `semantic` / `metrics` / `serving` implementation relations remain absent.
+- PR15a is implemented on the `feat/review-decision-events` branch only. It is not merged, no
+  production deployment workflow has been run for it, and `audit.review_decisions`,
+  `audit.effective_review_decisions`, and
+  `audit.effective_review_decisions_as_of(timestamptz)` do not exist in production yet.
+  `audit.quality_issues` is deliberately still absent everywhere.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -203,7 +222,9 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR15 feat/reported-fact-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR15a feat/review-decision-events` — NEXT; not implemented.
+- `PR15a feat/review-decision-events` — IMPLEMENTED ON FEATURE BRANCH; NOT merged; NOT deployed.
+- `PR16 feat/fact-current-as-of-queries` — NEXT AFTER PR15a completion; blocked until PR15a is
+  merged, deployed, and verified.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
@@ -212,7 +233,19 @@ and Git/YAML editorial authority with Python as executable authority.
 ## Known pending gates
 
 - PR15 `feat/reported-fact-schema` is fully merged, deployed, and independently verified. PR15a
-  `feat/review-decision-events` is NEXT and has not started. No `review_decisions` exist yet.
+  `feat/review-decision-events` is IMPLEMENTED on its feature branch and awaits review, merge,
+  production deployment, and independent verification. No `review_decisions` rows exist anywhere.
+- Before the first at-least-once writer of review decisions exists, that writer PR must either
+  guarantee exactly-once transactional decision insertion or add a client-supplied
+  request/idempotency key with a `UNIQUE` contract. PR15a intentionally adds no such column and
+  does not treat duplicate review events as harmless. `PR21 feat/cnbv-regulatory-slice` is the
+  first roadmap PR expected to discharge this gate.
+- Sibling successor arbitration remains open by design. PR15a permits competing `ACCEPT` events
+  on two successors of the same predecessor and adds no per-predecessor acceptance uniqueness or
+  competing-acceptance trigger. PR16 owns fact-level current/publishable semantics and their
+  enforcement mechanism.
+- Quality issues, quality blocker workflow, review queues, and automatic acceptance workflow
+  remain PR24 work. `audit.quality_issues` does not exist.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,
