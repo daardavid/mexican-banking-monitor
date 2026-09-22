@@ -15,7 +15,7 @@ not a changelog and does not make the roadmap executable.
 - General state: bootstrap/MVP foundation and PR1–PR15 are complete. PR10, PR11, PR13, PR14, and
   PR15 are merged, deployed, and independently verified. PR12 is merged and complete, and its
   production artifact Storage is provisioned and verified. PR15a `feat/review-decision-events` is
-  IMPLEMENTED on this feature branch; it is NOT merged and NOT deployed.
+  MERGED / COMPLETE; production deployment is COMPLETE / VERIFIED.
 
 ## Implemented now
 
@@ -58,17 +58,20 @@ not a changelog and does not make the roadmap executable.
   SHA-256 locator and fact hashes, instant/duration economic time, raw value plus exact numeric
   parsed value, and append-only revision lineage that allows multiple observed successors. The
   production table currently has zero rows.
-- The feature-branch PR15a review-decision schema implements `audit.review_decisions`: an
+- The deployed PR15a review-decision schema implements `audit.review_decisions`: an
   append-only private event log of exactly 11 columns, with the decision vocabulary `ACCEPT`,
   `REJECT`, and `REVOKE`, the actor vocabulary `HUMAN` and `SYSTEM_POLICY`, a mandatory single
   `reason` text column, a strictly monotonic per-fact `(decided_at, review_decision_id)` event
   timeline enforced under a per-fact advisory lock, a `REVOKE` precondition requiring an
   effective `ACCEPT` head event, and audit-only correction lineage constrained to the same fact
-  by a composite foreign key. Review authority is never a mutable status on a reported fact.
-  Effective review state is read through the `audit.effective_review_decisions` view and the
+  by a composite foreign key with no unique correction-target constraint.
+  Review authority is never a mutable status on a reported fact. Effective review state is
+  read through the `audit.effective_review_decisions` view and the
   `audit.effective_review_decisions_as_of(timestamptz)` function; a fact with no event is
   pending. PR15a deliberately adds no idempotency or request key, no quality-issue objects, and
-  no fact-level current/publishable semantics. These objects exist only on the feature branch.
+  no fact-level current/publishable semantics. Production currently has zero review-decision
+  rows, RLS enabled with zero policies, narrow `service_role` privileges, and no PR15a
+  SECURITY DEFINER functions.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -82,7 +85,7 @@ not a changelog and does not make the roadmap executable.
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
   migrations. The workflow has been used successfully for the verified PR10, PR11, PR13, PR14,
-  and PR15 deployments.
+  PR15, and PR15a deployments.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -98,8 +101,8 @@ not a changelog and does not make the roadmap executable.
 VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED; PR13
 MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
 COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE;
-PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A IMPLEMENTED ON FEATURE BRANCH /
-NOT MERGED / NOT DEPLOYED`
+PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A MERGED / COMPLETE;
+PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -113,10 +116,9 @@ and Git/YAML editorial authority with Python as executable authority.
 - The repository contains exactly seven migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
-  identity/taxonomy schema, the deployed PR15 reported-fact schema, and the undeployed
-  feature-branch PR15a review-decision schema.
-  Production has exactly six migrations. Exactly one repository migration,
-  `20260919180000_review_decision_events.sql`, is implemented and not deployed. No v1 public
+  identity/taxonomy schema, the deployed PR15 reported-fact schema, and the deployed PR15a
+  review-decision schema.
+  Production has exactly seven migrations. No pending production migration remains. No v1 public
   contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
@@ -134,6 +136,7 @@ and Git/YAML editorial authority with Python as executable authority.
   - `20260830234552 / ingestion_run_lifecycle`
   - `20260916202900 / institution_identity_schema`
   - `20260919143000 / reported_fact_schema`
+  - `20260919180000 / review_decision_events`
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
@@ -173,15 +176,23 @@ and Git/YAML editorial authority with Python as executable authority.
   exactly 28 columns and zero rows. RLS is enabled with zero policies. `service_role` has SELECT
   and narrow column-level INSERT only, with no UPDATE or DELETE. The two PR15 functions are not
   SECURITY DEFINER. The predecessor column is not unique, so multiple observed successors remain
-  possible. PR10–PR14 and legacy objects remain intact and empty. In production, PR15a+
-  implementation objects remain absent: `audit.review_decisions` is absent,
-  PR16 current/as-of objects are absent, `public.regulatory_bank_metrics_v1` remains absent,
-  and later `semantic` / `metrics` / `serving` implementation relations remain absent.
-- PR15a is implemented on the `feat/review-decision-events` branch only. It is not merged, no
-  production deployment workflow has been run for it, and `audit.review_decisions`,
-  `audit.effective_review_decisions`, and
-  `audit.effective_review_decisions_as_of(timestamptz)` do not exist in production yet.
-  `audit.quality_issues` is deliberately still absent everywhere.
+  possible. PR10–PR14 and legacy objects remain intact and empty.
+- GitHub PR #24 merged PR15a at `b3a83c0f92ad5d22948e3453d62988e9c26ee2cc`. PR15a production
+  database deployment workflow run `35467183915` completed successfully and was executed exactly
+  once. It applied only `20260919180000_review_decision_events.sql`. Production migration
+  history is aligned at seven, pending migrations are none, and the final production dry-run
+  was a no-op. Independent secret-safe read-only verification confirmed production contains
+  `audit.review_decisions`, `audit.effective_review_decisions`, and
+  `audit.effective_review_decisions_as_of(timestamptz)`. `audit.review_decisions` exists with
+  exactly 11 columns and zero rows. RLS is enabled with zero policies. The table is append-only
+  with a strict per-fact timeline, decision vocabulary `ACCEPT` / `REJECT` / `REVOKE`, actor
+  vocabulary `HUMAN` / `SYSTEM_POLICY`, same-fact correction lineage, and no unique
+  correction-target constraint. `service_role` has SELECT and narrow column-level INSERT only,
+  with no UPDATE, DELETE, or INSERT on `review_decision_id`. No PR15a SECURITY DEFINER
+  functions exist. All PR10–PR15a runtime tables remain empty. Legacy objects remain intact
+  and empty. `audit.quality_issues` remains absent. PR16 fact-level current/as-of objects
+  remain absent. `public.regulatory_bank_metrics_v1` remains absent, and later `semantic` /
+  `metrics` / `serving` implementation relations remain absent.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -190,6 +201,7 @@ and Git/YAML editorial authority with Python as executable authority.
 - PR14 institution identity and regulatory taxonomy schema is merged, deployed, and verified
   in production.
 - PR15 reported-fact schema is merged, deployed, and independently verified in production.
+- PR15a review-decision schema is merged, deployed, and independently verified in production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -222,19 +234,21 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR15 feat/reported-fact-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR15a feat/review-decision-events` — IMPLEMENTED ON FEATURE BRANCH; NOT merged; NOT deployed.
-- `PR16 feat/fact-current-as-of-queries` — NEXT AFTER PR15a completion; blocked until PR15a is
-  merged, deployed, and verified.
+- `PR15a feat/review-decision-events` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
+- `PR16 feat/fact-current-as-of-queries` — NEXT; not started. PR16 may begin only after this
+  production-state checkpoint is merged.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
-  VERIFIED; PR15 MERGED / COMPLETE with production deployment COMPLETE / VERIFIED.
+  VERIFIED; PR15 MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR15a
+  MERGED / COMPLETE with production deployment COMPLETE / VERIFIED.
 
 ## Known pending gates
 
 - PR15 `feat/reported-fact-schema` is fully merged, deployed, and independently verified. PR15a
-  `feat/review-decision-events` is IMPLEMENTED on its feature branch and awaits review, merge,
-  production deployment, and independent verification. No `review_decisions` rows exist anywhere.
+  `feat/review-decision-events` is MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED. No `review_decisions` rows exist anywhere.
 - Before the first at-least-once writer of review decisions exists, that writer PR must either
   guarantee exactly-once transactional decision insertion or add a client-supplied
   request/idempotency key with a `UNIQUE` contract. PR15a intentionally adds no such column and
