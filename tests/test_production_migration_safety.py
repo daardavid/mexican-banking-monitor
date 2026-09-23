@@ -1171,6 +1171,11 @@ def test_pr16_migration_is_private_forward_only_query_semantics() -> None:
         "pr16_catalog_passed",
         "pr16_relation_gate",
         "pr16_definition_gate",
+        "pr16_helper_definition_gate",
+        "pr16_current_observed_definition_gate",
+        "pr16_observed_asof_definition_gate",
+        "pr16_current_publishable_definition_gate",
+        "pr16_publishable_asof_definition_gate",
         "pr16_access_gate",
         "pr16_boundary_gate",
         "pr16_rollback_passed",
@@ -1181,6 +1186,20 @@ def test_pr16_migration_is_private_forward_only_query_semantics() -> None:
         "service_role acquired a pr16 write privilege",
     ):
         assert smoke_token in smoke_normalized
+
+    column_gate_start = smoke_normalized.find("pr16_observed_column_gate")
+    column_gate_end = smoke_normalized.find("pr16_helper_definition_gate")
+    assert column_gate_start != -1
+    assert column_gate_end > column_gate_start
+    column_gates = smoke_normalized[column_gate_start:column_gate_end]
+    assert "proallargtypes" in column_gates
+    assert "proargmodes" in column_gates
+    assert "proargnames" in column_gates
+    assert "argument_mode = 't'" in column_gates
+    assert "with ordinality" in column_gates
+    assert "row_number()" in column_gates
+    assert "typrelid" not in column_gates
+    assert "prorettype" not in column_gates
 
 
 @pytest.mark.parametrize(

@@ -6876,8 +6876,8 @@ with pr16_relation_gate as (
     )
     and not exists (
         select
-            attribute.attnum,
-            attribute.attname,
+            attribute.attnum::integer,
+            attribute.attname::text,
             attribute.atttypid
         from pg_catalog.pg_attribute attribute
         where attribute.attrelid = 'serving.current_observed_facts'::regclass
@@ -6885,46 +6885,95 @@ with pr16_relation_gate as (
           and not attribute.attisdropped
         except
         select
-            function_attribute.attnum,
-            function_attribute.attname,
-            function_attribute.atttypid
-        from pg_catalog.pg_proc function
-        join pg_catalog.pg_namespace namespace
-          on namespace.oid = function.pronamespace
-        join pg_catalog.pg_type return_type
-          on return_type.oid = function.prorettype
-        join pg_catalog.pg_attribute function_attribute
-          on function_attribute.attrelid = return_type.typrelid
-        where namespace.nspname = 'serving'
-          and function.proname = 'observed_facts_as_of'
-          and function_attribute.attnum > 0
-          and not function_attribute.attisdropped
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
     )
     and not exists (
         select
-            function_attribute.attnum,
-            function_attribute.attname,
-            function_attribute.atttypid
-        from pg_catalog.pg_proc function
-        join pg_catalog.pg_namespace namespace
-          on namespace.oid = function.pronamespace
-        join pg_catalog.pg_type return_type
-          on return_type.oid = function.prorettype
-        join pg_catalog.pg_attribute function_attribute
-          on function_attribute.attrelid = return_type.typrelid
-        where namespace.nspname = 'serving'
-          and function.proname = 'observed_facts_as_of'
-          and function_attribute.attnum > 0
-          and not function_attribute.attisdropped
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
         except
         select
-            attribute.attnum,
-            attribute.attname,
+            attribute.attnum::integer,
+            attribute.attname::text,
             attribute.atttypid
         from pg_catalog.pg_attribute attribute
         where attribute.attrelid = 'serving.current_observed_facts'::regclass
           and attribute.attnum > 0
           and not attribute.attisdropped
+    )
+    and (
+        select count(*) = 29
+            and bool_and(function_output.column_name <> 'cutoff')
+        from (
+            select argument.argument_name::text as column_name
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
     ) as valid
 ), pr16_publishable_column_gate as (
     select not exists (
@@ -7023,8 +7072,8 @@ with pr16_relation_gate as (
     )
     and not exists (
         select
-            attribute.attnum,
-            attribute.attname,
+            attribute.attnum::integer,
+            attribute.attname::text,
             attribute.atttypid
         from pg_catalog.pg_attribute attribute
         where attribute.attrelid = 'serving.current_publishable_facts'::regclass
@@ -7032,135 +7081,465 @@ with pr16_relation_gate as (
           and not attribute.attisdropped
         except
         select
-            function_attribute.attnum,
-            function_attribute.attname,
-            function_attribute.atttypid
-        from pg_catalog.pg_proc function
-        join pg_catalog.pg_namespace namespace
-          on namespace.oid = function.pronamespace
-        join pg_catalog.pg_type return_type
-          on return_type.oid = function.prorettype
-        join pg_catalog.pg_attribute function_attribute
-          on function_attribute.attrelid = return_type.typrelid
-        where namespace.nspname = 'serving'
-          and function.proname = 'publishable_facts_as_of'
-          and function_attribute.attnum > 0
-          and not function_attribute.attisdropped
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
     )
     and not exists (
         select
-            function_attribute.attnum,
-            function_attribute.attname,
-            function_attribute.atttypid
-        from pg_catalog.pg_proc function
-        join pg_catalog.pg_namespace namespace
-          on namespace.oid = function.pronamespace
-        join pg_catalog.pg_type return_type
-          on return_type.oid = function.prorettype
-        join pg_catalog.pg_attribute function_attribute
-          on function_attribute.attrelid = return_type.typrelid
-        where namespace.nspname = 'serving'
-          and function.proname = 'publishable_facts_as_of'
-          and function_attribute.attnum > 0
-          and not function_attribute.attisdropped
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
         except
         select
-            attribute.attnum,
-            attribute.attname,
+            attribute.attnum::integer,
+            attribute.attname::text,
             attribute.atttypid
         from pg_catalog.pg_attribute attribute
         where attribute.attrelid = 'serving.current_publishable_facts'::regclass
           and attribute.attnum > 0
           and not attribute.attisdropped
+    )
+    and (
+        select count(*) = 32
+            and bool_and(function_output.column_name <> 'cutoff')
+        from (
+            select argument.argument_name::text as column_name
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
     ) as valid
+), pr16_helper_definition_gate as (
+    select
+        missing_recursive is null
+        and missing_union_all is null
+        and missing_predecessor is null
+        and contains_fact_key_hash is null
+        and contains_generation_ceiling is null
+        and contains_depth_32 is null
+        and contains_depth_64 is null
+        and contains_depth_128 is null
+        and contains_depth_256 is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_recursive,
+            missing_union_all,
+            missing_predecessor,
+            contains_fact_key_hash,
+            contains_generation_ceiling,
+            contains_depth_32,
+            contains_depth_64,
+            contains_depth_128,
+            contains_depth_256
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('recursive' in lower(helper_definition.definition)) = 0
+                    then 'missing_recursive'
+            end as missing_recursive,
+            case
+                when position('union all' in lower(helper_definition.definition)) = 0
+                    then 'missing_union_all'
+            end as missing_union_all,
+            case
+                when position(
+                    'predecessor_reported_fact_id' in lower(helper_definition.definition)
+                ) = 0 then 'missing_predecessor'
+            end as missing_predecessor,
+            case
+                when position('fact_key_hash' in lower(helper_definition.definition)) > 0
+                    then 'contains_fact_key_hash'
+            end as contains_fact_key_hash,
+            case
+                when position('generations <' in lower(helper_definition.definition)) > 0
+                    then 'contains_generation_ceiling'
+            end as contains_generation_ceiling,
+            case
+                when position('< 32' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_32'
+            end as contains_depth_32,
+            case
+                when position('< 64' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_64'
+            end as contains_depth_64,
+            case
+                when position('< 128' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_128'
+            end as contains_depth_128,
+            case
+                when position('< 256' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_256'
+            end as contains_depth_256
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.reported_fact_revision_ancestry'::regclass,
+                false
+            ) as definition
+        ) as helper_definition
+    ) as helper_tokens
+), pr16_current_observed_definition_gate as (
+    select
+        contains_review_decision is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            contains_review_decision,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('review_decision' in lower(observed_definition.definition)) > 0
+                    then 'contains_review_decision'
+            end as contains_review_decision,
+            case
+                when position('now()' in lower(observed_definition.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(observed_definition.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(observed_definition.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.current_observed_facts'::regclass,
+                false
+            ) as definition
+        ) as observed_definition
+    ) as observed_tokens
+), pr16_observed_asof_definition_gate as (
+    select
+        missing_cutoff_eligible_facts is null
+        and missing_ancestor_after_cutoff is null
+        and missing_fact_observed_by_cutoff is null
+        and missing_eligible_child is null
+        and missing_null_cutoff_guard is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_cutoff_eligible_facts,
+            missing_ancestor_after_cutoff,
+            missing_fact_observed_by_cutoff,
+            missing_eligible_child,
+            missing_null_cutoff_guard,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('cutoff_eligible_facts' in lower(observed_function.definition)) = 0
+                    then 'missing_cutoff_eligible_facts'
+            end as missing_cutoff_eligible_facts,
+            case
+                when lower(observed_function.definition)
+                    !~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
+                    then 'missing_ancestor_after_cutoff'
+            end as missing_ancestor_after_cutoff,
+            case
+                when lower(observed_function.definition)
+                    !~ 'first_observed_at[[:space:]]*<=[[:space:]]*cutoff'
+                    then 'missing_fact_observed_by_cutoff'
+            end as missing_fact_observed_by_cutoff,
+            case
+                when position('eligible_child' in lower(observed_function.definition)) = 0
+                    then 'missing_eligible_child'
+            end as missing_eligible_child,
+            case
+                when position('cutoff is not null' in lower(observed_function.definition)) = 0
+                    then 'missing_null_cutoff_guard'
+            end as missing_null_cutoff_guard,
+            case
+                when position('now()' in lower(observed_function.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(observed_function.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(observed_function.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_functiondef(
+                'serving.observed_facts_as_of(timestamptz)'::regprocedure
+            ) as definition
+        ) as observed_function
+    ) as observed_function_tokens
+), pr16_current_publishable_definition_gate as (
+    select
+        missing_effective_review is null
+        and contains_as_of_review is null
+        and missing_accept is null
+        and missing_frontier_cardinality is null
+        and groups_by_fact_key_hash is null
+        and contains_order_by is null
+        and contains_correction_walk is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null
+        and missing_lineage_root is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_effective_review,
+            contains_as_of_review,
+            missing_accept,
+            missing_frontier_cardinality,
+            groups_by_fact_key_hash,
+            contains_order_by,
+            contains_correction_walk,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star,
+            missing_lineage_root
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position(
+                    'effective_review_decisions' in lower(publishable_definition.definition)
+                ) = 0
+                or position(
+                    'effective_review_decisions_as_of' in lower(publishable_definition.definition)
+                ) > 0
+                    then 'missing_effective_review'
+            end as missing_effective_review,
+            case
+                when position(
+                    'effective_review_decisions_as_of' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_as_of_review'
+            end as contains_as_of_review,
+            case
+                when position('decision' in lower(publishable_definition.definition)) = 0
+                    or position('accept' in lower(publishable_definition.definition)) = 0
+                    then 'missing_accept'
+            end as missing_accept,
+            case
+                when lower(publishable_definition.definition)
+                    !~ 'having[[:space:]]+.{0,80}count\(\*\).{0,40}1'
+                    then 'missing_frontier_cardinality'
+            end as missing_frontier_cardinality,
+            case
+                when lower(publishable_definition.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
+                    or lower(publishable_definition.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact\.fact_key_hash'
+                    then 'groups_by_fact_key_hash'
+            end as groups_by_fact_key_hash,
+            case
+                when position('order by' in lower(publishable_definition.definition)) > 0
+                    then 'contains_order_by'
+            end as contains_order_by,
+            case
+                when position(
+                    'corrects_review_decision_id' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_correction_walk'
+            end as contains_correction_walk,
+            case
+                when position('now()' in lower(publishable_definition.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position(
+                    'clock_timestamp()' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(publishable_definition.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star,
+            case
+                when position(
+                    'lineage_root_reported_fact_id' in lower(publishable_definition.definition)
+                ) = 0 then 'missing_lineage_root'
+            end as missing_lineage_root
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.current_publishable_facts'::regclass,
+                false
+            ) as definition
+        ) as publishable_definition
+    ) as publishable_tokens
+), pr16_publishable_asof_definition_gate as (
+    select
+        missing_cutoff_eligible_facts is null
+        and missing_eligible_descendant is null
+        and missing_as_of_review is null
+        and missing_ancestor_after_cutoff is null
+        and missing_accept is null
+        and missing_frontier_cardinality is null
+        and groups_by_fact_key_hash is null
+        and contains_order_by is null
+        and contains_correction_walk is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_cutoff_eligible_facts,
+            missing_eligible_descendant,
+            missing_as_of_review,
+            missing_ancestor_after_cutoff,
+            missing_accept,
+            missing_frontier_cardinality,
+            groups_by_fact_key_hash,
+            contains_order_by,
+            contains_correction_walk,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position(
+                    'cutoff_eligible_facts' in lower(publishable_function.definition)
+                ) = 0 then 'missing_cutoff_eligible_facts'
+            end as missing_cutoff_eligible_facts,
+            case
+                when position(
+                    'eligible_descendant' in lower(publishable_function.definition)
+                ) = 0 then 'missing_eligible_descendant'
+            end as missing_eligible_descendant,
+            case
+                when position(
+                    'effective_review_decisions_as_of' in lower(publishable_function.definition)
+                ) = 0 then 'missing_as_of_review'
+            end as missing_as_of_review,
+            case
+                when lower(publishable_function.definition)
+                    !~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
+                    then 'missing_ancestor_after_cutoff'
+            end as missing_ancestor_after_cutoff,
+            case
+                when position('decision' in lower(publishable_function.definition)) = 0
+                    or position('accept' in lower(publishable_function.definition)) = 0
+                    then 'missing_accept'
+            end as missing_accept,
+            case
+                when lower(publishable_function.definition)
+                    !~ 'having[[:space:]]+.{0,80}count\(\*\).{0,40}1'
+                    then 'missing_frontier_cardinality'
+            end as missing_frontier_cardinality,
+            case
+                when lower(publishable_function.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
+                    then 'groups_by_fact_key_hash'
+            end as groups_by_fact_key_hash,
+            case
+                when position('order by' in lower(publishable_function.definition)) > 0
+                    then 'contains_order_by'
+            end as contains_order_by,
+            case
+                when position(
+                    'corrects_review_decision_id' in lower(publishable_function.definition)
+                ) > 0 then 'contains_correction_walk'
+            end as contains_correction_walk,
+            case
+                when position('now()' in lower(publishable_function.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(publishable_function.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(publishable_function.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_functiondef(
+                'serving.publishable_facts_as_of(timestamptz)'::regprocedure
+            ) as definition
+        ) as publishable_function
+    ) as publishable_function_tokens
 ), pr16_definition_gate as (
     select
-        position('recursive' in lower(helper_definition.definition)) > 0
-        and position('union all' in lower(helper_definition.definition)) > 0
-        and position('predecessor_reported_fact_id' in lower(helper_definition.definition)) > 0
-        and position('fact_key_hash' in lower(helper_definition.definition)) = 0
-        and position('generations <' in lower(helper_definition.definition)) = 0
-        and position('< 32' in lower(helper_definition.definition)) = 0
-        and position('< 64' in lower(helper_definition.definition)) = 0
-        and position('< 128' in lower(helper_definition.definition)) = 0
-        and position('< 256' in lower(helper_definition.definition)) = 0
-        and position('review_decision' in lower(observed_definition.definition)) = 0
-        and position('now()' in lower(observed_definition.definition)) = 0
-        and position('clock_timestamp()' in lower(observed_definition.definition)) = 0
-        and lower(observed_definition.definition) !~ 'select[[:space:]]+\*'
-        and lower(observed_function.definition) ~ 'cutoff_eligible_facts'
-        and lower(observed_function.definition)
-            ~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
-        and lower(observed_function.definition)
-            ~ 'first_observed_at[[:space:]]*<=[[:space:]]*cutoff'
-        and lower(observed_function.definition) ~ 'eligible_child'
-        and lower(observed_function.definition) ~ 'cutoff is not null'
-        and position('now()' in lower(observed_function.definition)) = 0
-        and position('clock_timestamp()' in lower(observed_function.definition)) = 0
-        and lower(observed_function.definition) !~ 'select[[:space:]]+\*'
-        and lower(publishable_definition.definition) ~ 'audit\.effective_review_decisions'
-        and position(
-            'effective_review_decisions_as_of' in lower(publishable_definition.definition)
-        ) = 0
-        and lower(publishable_definition.definition)
-            ~ 'decision[[:space:]]*=[[:space:]]*''accept'''
-        and lower(publishable_definition.definition)
-            ~ 'having[[:space:]]+\(?[[:space:]]*count\(\*\)[[:space:]]*=[[:space:]]*1'
-        and lower(publishable_definition.definition)
-            ~ 'group[[:space:]]+by[[:space:]]+frontier\.lineage_root_reported_fact_id'
-        and lower(publishable_definition.definition) !~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
-        and lower(publishable_definition.definition)
-            !~ 'group[[:space:]]+by[[:space:]]+fact\.fact_key_hash'
-        and position('order by' in lower(publishable_definition.definition)) = 0
-        and position(
-            'corrects_review_decision_id' in lower(publishable_definition.definition)
-        ) = 0
-        and position('now()' in lower(publishable_definition.definition)) = 0
-        and position('clock_timestamp()' in lower(publishable_definition.definition)) = 0
-        and lower(publishable_definition.definition) !~ 'select[[:space:]]+\*'
-        and lower(publishable_function.definition) ~ 'cutoff_eligible_facts'
-        and lower(publishable_function.definition) ~ 'eligible_descendant'
-        and lower(publishable_function.definition) ~ 'effective_review_decisions_as_of'
-        and lower(publishable_function.definition)
-            ~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
-        and lower(publishable_function.definition)
-            ~ 'decision[[:space:]]*=[[:space:]]*''accept'''
-        and lower(publishable_function.definition)
-            ~ 'having[[:space:]]+\(?[[:space:]]*count\(\*\)[[:space:]]*=[[:space:]]*1'
-        and lower(publishable_function.definition) !~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
-        and position('order by' in lower(publishable_function.definition)) = 0
-        and position(
-            'corrects_review_decision_id' in lower(publishable_function.definition)
-        ) = 0
-        and position('now()' in lower(publishable_function.definition)) = 0
-        and position('clock_timestamp()' in lower(publishable_function.definition)) = 0
-        and lower(publishable_function.definition) !~ 'select[[:space:]]+\*'
-        as valid
-    from (
-        select pg_catalog.pg_get_viewdef(
-            'serving.reported_fact_revision_ancestry'::regclass
-        ) as definition
-    ) as helper_definition
-    cross join (
-        select pg_catalog.pg_get_viewdef(
-            'serving.current_observed_facts'::regclass
-        ) as definition
-    ) as observed_definition
-    cross join (
-        select pg_catalog.pg_get_viewdef(
-            'serving.current_publishable_facts'::regclass
-        ) as definition
-    ) as publishable_definition
-    cross join (
-        select pg_catalog.pg_get_functiondef(
-            'serving.observed_facts_as_of(timestamptz)'::regprocedure
-        ) as definition
-    ) as observed_function
-    cross join (
-        select pg_catalog.pg_get_functiondef(
-            'serving.publishable_facts_as_of(timestamptz)'::regprocedure
-        ) as definition
-    ) as publishable_function
+        helper.valid
+        and current_observed.valid
+        and observed_asof.valid
+        and current_publishable.valid
+        and publishable_asof.valid as valid
+    from pr16_helper_definition_gate as helper
+    cross join pr16_current_observed_definition_gate as current_observed
+    cross join pr16_observed_asof_definition_gate as observed_asof
+    cross join pr16_current_publishable_definition_gate as current_publishable
+    cross join pr16_publishable_asof_definition_gate as publishable_asof
 ), pr16_access_gate as (
     select
         pg_catalog.has_table_privilege(
@@ -7337,6 +7716,18 @@ select
     pr16_helper_column_gate.valid as pr16_helper_column_gate,
     pr16_observed_column_gate.valid as pr16_observed_column_gate,
     pr16_publishable_column_gate.valid as pr16_publishable_column_gate,
+    pr16_helper_definition_gate.valid as pr16_helper_definition_gate,
+    pr16_helper_definition_gate.detail as pr16_helper_definition_detail,
+    pr16_current_observed_definition_gate.valid as pr16_current_observed_definition_gate,
+    pr16_current_observed_definition_gate.detail as pr16_current_observed_definition_detail,
+    pr16_observed_asof_definition_gate.valid as pr16_observed_asof_definition_gate,
+    pr16_observed_asof_definition_gate.detail as pr16_observed_asof_definition_detail,
+    pr16_current_publishable_definition_gate.valid
+        as pr16_current_publishable_definition_gate,
+    pr16_current_publishable_definition_gate.detail
+        as pr16_current_publishable_definition_detail,
+    pr16_publishable_asof_definition_gate.valid as pr16_publishable_asof_definition_gate,
+    pr16_publishable_asof_definition_gate.detail as pr16_publishable_asof_definition_detail,
     pr16_definition_gate.valid as pr16_definition_gate,
     pr16_access_gate.valid as pr16_access_gate,
     pr16_boundary_gate.valid as pr16_boundary_gate,
@@ -7357,6 +7748,11 @@ cross join pr16_security_invoker_gate
 cross join pr16_helper_column_gate
 cross join pr16_observed_column_gate
 cross join pr16_publishable_column_gate
+cross join pr16_helper_definition_gate
+cross join pr16_current_observed_definition_gate
+cross join pr16_observed_asof_definition_gate
+cross join pr16_current_publishable_definition_gate
+cross join pr16_publishable_asof_definition_gate
 cross join pr16_definition_gate
 cross join pr16_access_gate
 cross join pr16_boundary_gate
@@ -7368,6 +7764,11 @@ cross join pr16_boundary_gate
 \echo PR16 gate helper_columns: :pr16_helper_column_gate
 \echo PR16 gate observed_columns: :pr16_observed_column_gate
 \echo PR16 gate publishable_columns: :pr16_publishable_column_gate
+\echo PR16 gate helper_definition: :pr16_helper_definition_gate :pr16_helper_definition_detail
+\echo PR16 gate current_observed_definition: :pr16_current_observed_definition_gate :pr16_current_observed_definition_detail
+\echo PR16 gate observed_asof_definition: :pr16_observed_asof_definition_gate :pr16_observed_asof_definition_detail
+\echo PR16 gate current_publishable_definition: :pr16_current_publishable_definition_gate :pr16_current_publishable_definition_detail
+\echo PR16 gate publishable_asof_definition: :pr16_publishable_asof_definition_gate :pr16_publishable_asof_definition_detail
 \echo PR16 gate definitions: :pr16_definition_gate
 \echo PR16 gate access: :pr16_access_gate
 \echo PR16 gate boundary: :pr16_boundary_gate
