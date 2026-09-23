@@ -33,6 +33,7 @@ PR13_MIGRATION_SHA256 = (
 PR14_MIGRATION_NAME = "20260916202900_institution_identity_schema.sql"
 PR15_MIGRATION_NAME = "20260919143000_reported_fact_schema.sql"
 PR15A_MIGRATION_NAME = "20260919180000_review_decision_events.sql"
+PR16_MIGRATION_NAME = "20260922120000_fact_current_as_of_queries.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -86,6 +87,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr14_content = migrations[4].path.read_bytes().replace(b"\r\n", b"\n")
     pr15_content = migrations[5].path.read_bytes().replace(b"\r\n", b"\n")
     pr15a_content = migrations[6].path.read_bytes().replace(b"\r\n", b"\n")
+    pr16_content = migrations[7].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -95,8 +97,9 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
         PR14_MIGRATION_NAME,
         PR15_MIGRATION_NAME,
         PR15A_MIGRATION_NAME,
+        PR16_MIGRATION_NAME,
     ]
-    assert len(migrations) == 7
+    assert len(migrations) == 8
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
@@ -105,7 +108,9 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     assert "create table registry.institutions" in pr14_content.decode("utf-8")
     assert "create table reported.reported_facts" in pr15_content.decode("utf-8")
     assert "create table audit.review_decisions" in pr15a_content.decode("utf-8")
+    assert "create view serving.current_observed_facts" in pr16_content.decode("utf-8")
     assert PR15A_MIGRATION_NAME > PR15_MIGRATION_NAME
+    assert PR16_MIGRATION_NAME > PR15A_MIGRATION_NAME
 
 
 def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations() -> None:
@@ -127,9 +132,11 @@ def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations()
         assert "do $$" in failure_branch
         assert "raise exception" in failure_branch
 
-    assert normalized.count(
-        "where namespace.nspname in ('semantic', 'metrics', 'serving')"
-    ) >= 1
+    assert "where namespace.nspname in ('semantic', 'metrics')" in normalized
+    assert "where namespace.nspname in ('semantic', 'metrics', 'serving')" not in normalized
+    assert "('reported_fact_revision_ancestry', 'v')" in normalized
+    assert "('current_observed_facts', 'v')" in normalized
+    assert "('current_publishable_facts', 'v')" in normalized
     assert (
         "where namespace.nspname in "
         "('reported', 'semantic', 'metrics', 'audit', 'serving')"
@@ -1073,6 +1080,126 @@ def test_pr15a_smoke_freezes_timeline_revoke_and_idempotency_boundaries() -> Non
     assert "service_role deleted a review decision" in normalized
     assert "table-owner update of a review decision was accepted" in normalized
     assert "table-owner delete of a review decision was accepted" in normalized
+
+
+def test_pr16_migration_is_private_forward_only_query_semantics() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR16_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    smoke_normalized = " ".join(smoke_text.lower().split())
+
+    assert normalized.count("create view ") == 3
+    assert normalized.count("create function ") == 2
+    assert normalized.count("with (security_invoker = true)") == 3
+    assert normalized.count("language sql stable") == 2
+    assert "create view serving.reported_fact_revision_ancestry" in normalized
+    assert "create view serving.current_observed_facts" in normalized
+    assert "create view serving.current_publishable_facts" in normalized
+    assert "create function serving.observed_facts_as_of(cutoff timestamptz)" in normalized
+    assert "create function serving.publishable_facts_as_of(cutoff timestamptz)" in normalized
+    assert "create view serving.current " not in normalized
+    assert "create view serving.current(" not in normalized
+    assert "with recursive" in normalized
+    assert "union all" in normalized
+    assert "generations > 0" in normalized
+    assert "generations <" not in normalized
+    for depth_ceiling in ("< 32", "< 64", "< 128", "< 256"):
+        assert depth_ceiling not in normalized
+    assert " cycle " not in f" {normalized} "
+    assert "group by fact_key_hash" not in normalized
+    assert "group by fact.fact_key_hash" not in normalized
+    assert "order by" not in normalized
+    assert "corrects_review_decision_id" not in normalized
+    assert "now()" not in normalized
+    assert "clock_timestamp()" not in normalized
+    assert normalized.count("ancestor.first_observed_at > cutoff") == 2
+    assert normalized.count("fact.first_observed_at <= cutoff") == 2
+    assert normalized.count("cutoff is not null") == 2
+    assert "cutoff_eligible_facts" in normalized
+    assert "eligible_child" in normalized
+    assert "eligible_descendant" in normalized
+    assert "audit.effective_review_decisions " in normalized
+    assert "audit.effective_review_decisions_as_of(cutoff)" in normalized
+    assert "decision = 'accept'" in normalized
+    assert "having count(*) = 1" in normalized
+    assert " strict" not in normalized
+    assert "security definer" not in normalized
+    assert "create table " not in normalized
+    assert "create index " not in normalized
+    assert "create policy " not in normalized
+    assert "create materialized view " not in normalized
+    assert "insert into" not in normalized
+    assert "create role " not in normalized
+    assert "alter role " not in normalized
+    assert forbidden_operations(migration_text) == []
+    for protected_token in (
+        "core.",
+        "ops.",
+        "analytics.",
+        "semantic.",
+        "metrics.",
+        "quality_issues",
+        "public.regulatory_bank_metrics_v1",
+        "drop ",
+        "truncate",
+        "delete from",
+    ):
+        assert protected_token not in normalized
+    assert (
+        "revoke all privileges on serving.reported_fact_revision_ancestry, "
+        "serving.current_observed_facts, serving.current_publishable_facts "
+        "from public, anon, authenticated, service_role;"
+    ) in normalized
+    assert (
+        "grant select on serving.reported_fact_revision_ancestry, "
+        "serving.current_observed_facts, serving.current_publishable_facts "
+        "to service_role;"
+    ) in normalized
+    assert (
+        "grant execute on function serving.observed_facts_as_of(timestamptz), "
+        "serving.publishable_facts_as_of(timestamptz) to service_role;"
+    ) in normalized
+    assert "grant insert" not in normalized
+    assert "grant update" not in normalized
+    assert "grant delete" not in normalized
+
+    for smoke_token in (
+        "pr16_catalog_passed",
+        "pr16_relation_gate",
+        "pr16_definition_gate",
+        "pr16_helper_definition_gate",
+        "pr16_current_observed_definition_gate",
+        "pr16_observed_asof_definition_gate",
+        "pr16_current_publishable_definition_gate",
+        "pr16_publishable_asof_definition_gate",
+        "pr16_access_gate",
+        "pr16_boundary_gate",
+        "pr16_rollback_passed",
+        "future ancestry was visible before its root",
+        "sibling accept conflict returned a publishable row",
+        "null cutoff returned rows",
+        "late cutoff observed set diverged from current",
+        "service_role acquired a pr16 write privilege",
+    ):
+        assert smoke_token in smoke_normalized
+
+    column_gate_start = smoke_normalized.find("pr16_observed_column_gate")
+    column_gate_end = smoke_normalized.find("pr16_helper_definition_gate")
+    assert column_gate_start != -1
+    assert column_gate_end > column_gate_start
+    column_gates = smoke_normalized[column_gate_start:column_gate_end]
+    assert "proallargtypes" in column_gates
+    assert "proargmodes" in column_gates
+    assert "proargnames" in column_gates
+    assert "argument_mode = 't'" in column_gates
+    assert "with ordinality" in column_gates
+    assert "row_number()" in column_gates
+    assert "typrelid" not in column_gates
+    assert "prorettype" not in column_gates
 
 
 @pytest.mark.parametrize(

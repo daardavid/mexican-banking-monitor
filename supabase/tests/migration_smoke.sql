@@ -301,7 +301,21 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
             from pg_catalog.pg_class relation
             join pg_catalog.pg_namespace namespace
               on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('semantic', 'metrics', 'serving')
+            where namespace.nspname in ('semantic', 'metrics')
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((relation.relname, relation.relkind::text) in (
+                    ('reported_fact_revision_ancestry', 'v'),
+                    ('current_observed_facts', 'v'),
+                    ('current_publishable_facts', 'v')
+                ))
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'serving'
               and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and (
@@ -726,8 +740,22 @@ with evidence_columns_gate as (
             from pg_catalog.pg_class later_relation
             join pg_catalog.pg_namespace later_namespace
               on later_namespace.oid = later_relation.relnamespace
-            where later_namespace.nspname in ('semantic', 'metrics', 'serving')
+            where later_namespace.nspname in ('semantic', 'metrics')
               and later_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and((serving_relation.relname, serving_relation.relkind::text) in (
+                    ('reported_fact_revision_ancestry', 'v'),
+                    ('current_observed_facts', 'v'),
+                    ('current_publishable_facts', 'v')
+                ))
+            from pg_catalog.pg_class serving_relation
+            join pg_catalog.pg_namespace serving_namespace
+              on serving_namespace.oid = serving_relation.relnamespace
+            where serving_namespace.nspname = 'serving'
+              and serving_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and (
             select
@@ -2720,7 +2748,7 @@ with pr14_extension_gate as (
         pg_catalog.to_regclass('reported.reported_facts') is not null
         and pg_catalog.to_regclass('semantic.canonical_concepts') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
-        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
         and pg_catalog.to_regclass('audit.quality_issues') is null
         and pg_catalog.to_regclass('audit.review_decisions') is not null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
@@ -3756,8 +3784,8 @@ with pr15_columns_gate as (
 ), pr15_boundary_gate as (
     select
         pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('serving.current_observed_facts') is null
-        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('serving.current_observed_facts') is not null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
         and pg_catalog.to_regclass('semantic.canonical_concepts') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
@@ -4197,8 +4225,9 @@ with pr15a_columns_gate as (
     select
         pg_catalog.to_regclass('audit.review_decisions') is not null
         and pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('serving.current_observed_facts') is null
-        and pg_catalog.to_regclass('serving.current_publishable_facts') is null
+        and pg_catalog.to_regclass('serving.reported_fact_revision_ancestry') is not null
+        and pg_catalog.to_regclass('serving.current_observed_facts') is not null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
         and pg_catalog.to_regclass('semantic.canonical_concepts') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
@@ -4207,7 +4236,18 @@ with pr15a_columns_gate as (
             from pg_catalog.pg_proc function
             join pg_catalog.pg_namespace namespace
               on namespace.oid = function.pronamespace
-            where namespace.nspname in ('semantic', 'metrics', 'serving')
+            where namespace.nspname in ('semantic', 'metrics')
+        )
+        and (
+            select count(*) = 2
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'serving'
+              and function.proname in (
+                  'observed_facts_as_of',
+                  'publishable_facts_as_of'
+              )
         )
         and not exists (
             select 1
@@ -6634,6 +6674,2096 @@ end
 $$;
 \endif
 
+with pr16_relation_gate as (
+    select
+        count(*) = 3
+        and bool_and(relation.relkind = 'v')
+        and bool_and(relation.relname in (
+            'reported_fact_revision_ancestry',
+            'current_observed_facts',
+            'current_publishable_facts'
+        ))
+        and not exists (
+            select 1
+            from pg_catalog.pg_class extra_relation
+            join pg_catalog.pg_namespace extra_namespace
+              on extra_namespace.oid = extra_relation.relnamespace
+            where extra_namespace.nspname = 'serving'
+              and extra_relation.relkind in ('r', 'p', 'm', 'S', 'f', 'i')
+        )
+        and pg_catalog.to_regclass('serving.current') is null
+        and not exists (
+            select 1
+            from pg_catalog.pg_class named_current
+            join pg_catalog.pg_namespace current_namespace
+              on current_namespace.oid = named_current.relnamespace
+            where current_namespace.nspname = 'serving'
+              and named_current.relname = 'current'
+        ) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'serving'
+      and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+), pr16_function_gate as (
+    select
+        count(*) = 2
+        and bool_and(function.proname in (
+            'observed_facts_as_of',
+            'publishable_facts_as_of'
+        ))
+        and bool_and(not function.prosecdef)
+        and bool_and(not function.proisstrict)
+        and bool_and(function.provolatile = 's')
+        and bool_and(function.pronargs = 1)
+        and bool_and(function.proargtypes[0] = 'timestamptz'::regtype)
+        and bool_and(function.prolang = (
+            select language.oid
+            from pg_catalog.pg_language language
+            where language.lanname = 'sql'
+        )) as valid
+    from pg_catalog.pg_proc function
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = function.pronamespace
+    where namespace.nspname = 'serving'
+), pr16_security_invoker_gate as (
+    select
+        count(*) = 3
+        and bool_and(exists (
+            select 1
+            from unnest(coalesce(relation.reloptions, array[]::text[])) as view_option
+            where lower(view_option) in (
+                'security_invoker=true',
+                'security_invoker=on',
+                'security_invoker=1'
+            )
+        )) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'serving'
+      and relation.relkind = 'v'
+      and relation.relname in (
+          'reported_fact_revision_ancestry',
+          'current_observed_facts',
+          'current_publishable_facts'
+      )
+), pr16_helper_column_gate as (
+    select not exists (
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'reported_fact_id', 'bigint'),
+                (2, 'ancestor_reported_fact_id', 'bigint'),
+                (3, 'generations', 'integer')
+        ) as expected(ordinal, column_name, type_name)
+        except
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.reported_fact_revision_ancestry'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    )
+    and not exists (
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.reported_fact_revision_ancestry'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+        except
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'reported_fact_id', 'bigint'),
+                (2, 'ancestor_reported_fact_id', 'bigint'),
+                (3, 'generations', 'integer')
+        ) as expected(ordinal, column_name, type_name)
+    ) as valid
+), pr16_observed_column_gate as (
+    select not exists (
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'lineage_root_reported_fact_id', 'bigint'),
+                (2, 'reported_fact_id', 'bigint'),
+                (3, 'regulatory_registration_id', 'uuid'),
+                (4, 'regulator_id', 'uuid'),
+                (5, 'regulatory_concept_id', 'uuid'),
+                (6, 'source_id', 'uuid'),
+                (7, 'reporting_scope_id', 'uuid'),
+                (8, 'source_artifact_id', 'uuid'),
+                (9, 'source_release_id', 'uuid'),
+                (10, 'ingestion_run_id', 'uuid'),
+                (11, 'source_definition_version', 'integer'),
+                (12, 'parser_implementation_key', 'text'),
+                (13, 'parser_implementation_version', 'text'),
+                (14, 'identity_definition_hash', 'text'),
+                (15, 'period_kind', 'text'),
+                (16, 'period_start', 'date'),
+                (17, 'period_end', 'date'),
+                (18, 'unit_code', 'text'),
+                (19, 'dimensions', 'jsonb'),
+                (20, 'raw_value', 'text'),
+                (21, 'parsed_value', 'numeric'),
+                (22, 'raw_label', 'text'),
+                (23, 'locator_kind', 'text'),
+                (24, 'source_locator', 'jsonb'),
+                (25, 'locator_hash', 'text'),
+                (26, 'fact_key_hash', 'text'),
+                (27, 'first_observed_at', 'timestamp with time zone'),
+                (28, 'predecessor_reported_fact_id', 'bigint'),
+                (29, 'supersession_reason', 'text')
+        ) as expected(ordinal, column_name, type_name)
+        except
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_observed_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    )
+    and not exists (
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_observed_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+        except
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'lineage_root_reported_fact_id', 'bigint'),
+                (2, 'reported_fact_id', 'bigint'),
+                (3, 'regulatory_registration_id', 'uuid'),
+                (4, 'regulator_id', 'uuid'),
+                (5, 'regulatory_concept_id', 'uuid'),
+                (6, 'source_id', 'uuid'),
+                (7, 'reporting_scope_id', 'uuid'),
+                (8, 'source_artifact_id', 'uuid'),
+                (9, 'source_release_id', 'uuid'),
+                (10, 'ingestion_run_id', 'uuid'),
+                (11, 'source_definition_version', 'integer'),
+                (12, 'parser_implementation_key', 'text'),
+                (13, 'parser_implementation_version', 'text'),
+                (14, 'identity_definition_hash', 'text'),
+                (15, 'period_kind', 'text'),
+                (16, 'period_start', 'date'),
+                (17, 'period_end', 'date'),
+                (18, 'unit_code', 'text'),
+                (19, 'dimensions', 'jsonb'),
+                (20, 'raw_value', 'text'),
+                (21, 'parsed_value', 'numeric'),
+                (22, 'raw_label', 'text'),
+                (23, 'locator_kind', 'text'),
+                (24, 'source_locator', 'jsonb'),
+                (25, 'locator_hash', 'text'),
+                (26, 'fact_key_hash', 'text'),
+                (27, 'first_observed_at', 'timestamp with time zone'),
+                (28, 'predecessor_reported_fact_id', 'bigint'),
+                (29, 'supersession_reason', 'text')
+        ) as expected(ordinal, column_name, type_name)
+    )
+    and not exists (
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            attribute.atttypid
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_observed_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+        except
+        select
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+    )
+    and not exists (
+        select
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+        except
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            attribute.atttypid
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_observed_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    )
+    and (
+        select count(*) = 29
+            and bool_and(function_output.column_name <> 'cutoff')
+        from (
+            select argument.argument_name::text as column_name
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'observed_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+    ) as valid
+), pr16_publishable_column_gate as (
+    select not exists (
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'lineage_root_reported_fact_id', 'bigint'),
+                (2, 'reported_fact_id', 'bigint'),
+                (3, 'regulatory_registration_id', 'uuid'),
+                (4, 'regulator_id', 'uuid'),
+                (5, 'regulatory_concept_id', 'uuid'),
+                (6, 'source_id', 'uuid'),
+                (7, 'reporting_scope_id', 'uuid'),
+                (8, 'source_artifact_id', 'uuid'),
+                (9, 'source_release_id', 'uuid'),
+                (10, 'ingestion_run_id', 'uuid'),
+                (11, 'source_definition_version', 'integer'),
+                (12, 'parser_implementation_key', 'text'),
+                (13, 'parser_implementation_version', 'text'),
+                (14, 'identity_definition_hash', 'text'),
+                (15, 'period_kind', 'text'),
+                (16, 'period_start', 'date'),
+                (17, 'period_end', 'date'),
+                (18, 'unit_code', 'text'),
+                (19, 'dimensions', 'jsonb'),
+                (20, 'raw_value', 'text'),
+                (21, 'parsed_value', 'numeric'),
+                (22, 'raw_label', 'text'),
+                (23, 'locator_kind', 'text'),
+                (24, 'source_locator', 'jsonb'),
+                (25, 'locator_hash', 'text'),
+                (26, 'fact_key_hash', 'text'),
+                (27, 'first_observed_at', 'timestamp with time zone'),
+                (28, 'predecessor_reported_fact_id', 'bigint'),
+                (29, 'supersession_reason', 'text'),
+                (30, 'effective_review_decision_id', 'bigint'),
+                (31, 'effective_decision', 'text'),
+                (32, 'effective_decided_at', 'timestamp with time zone')
+        ) as expected(ordinal, column_name, type_name)
+        except
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_publishable_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    )
+    and not exists (
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_publishable_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+        except
+        select expected.ordinal, expected.column_name, expected.type_name
+        from (
+            values
+                (1, 'lineage_root_reported_fact_id', 'bigint'),
+                (2, 'reported_fact_id', 'bigint'),
+                (3, 'regulatory_registration_id', 'uuid'),
+                (4, 'regulator_id', 'uuid'),
+                (5, 'regulatory_concept_id', 'uuid'),
+                (6, 'source_id', 'uuid'),
+                (7, 'reporting_scope_id', 'uuid'),
+                (8, 'source_artifact_id', 'uuid'),
+                (9, 'source_release_id', 'uuid'),
+                (10, 'ingestion_run_id', 'uuid'),
+                (11, 'source_definition_version', 'integer'),
+                (12, 'parser_implementation_key', 'text'),
+                (13, 'parser_implementation_version', 'text'),
+                (14, 'identity_definition_hash', 'text'),
+                (15, 'period_kind', 'text'),
+                (16, 'period_start', 'date'),
+                (17, 'period_end', 'date'),
+                (18, 'unit_code', 'text'),
+                (19, 'dimensions', 'jsonb'),
+                (20, 'raw_value', 'text'),
+                (21, 'parsed_value', 'numeric'),
+                (22, 'raw_label', 'text'),
+                (23, 'locator_kind', 'text'),
+                (24, 'source_locator', 'jsonb'),
+                (25, 'locator_hash', 'text'),
+                (26, 'fact_key_hash', 'text'),
+                (27, 'first_observed_at', 'timestamp with time zone'),
+                (28, 'predecessor_reported_fact_id', 'bigint'),
+                (29, 'supersession_reason', 'text'),
+                (30, 'effective_review_decision_id', 'bigint'),
+                (31, 'effective_decision', 'text'),
+                (32, 'effective_decided_at', 'timestamp with time zone')
+        ) as expected(ordinal, column_name, type_name)
+    )
+    and not exists (
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            attribute.atttypid
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_publishable_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+        except
+        select
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+    )
+    and not exists (
+        select
+            function_output.ordinal,
+            function_output.column_name,
+            function_output.type_oid
+        from (
+            select
+                row_number() over (
+                    order by argument.argument_ordinal
+                )::integer as ordinal,
+                argument.argument_name::text as column_name,
+                argument.type_oid
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+        except
+        select
+            attribute.attnum::integer,
+            attribute.attname::text,
+            attribute.atttypid
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'serving.current_publishable_facts'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    )
+    and (
+        select count(*) = 32
+            and bool_and(function_output.column_name <> 'cutoff')
+        from (
+            select argument.argument_name::text as column_name
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral unnest(
+                function.proallargtypes,
+                function.proargmodes,
+                function.proargnames
+            ) with ordinality as argument(
+                type_oid,
+                argument_mode,
+                argument_name,
+                argument_ordinal
+            )
+            where namespace.nspname = 'serving'
+              and function.proname = 'publishable_facts_as_of'
+              and argument.argument_mode = 't'
+        ) as function_output
+    ) as valid
+), pr16_helper_definition_gate as (
+    select
+        missing_recursive is null
+        and missing_union_all is null
+        and missing_predecessor is null
+        and contains_fact_key_hash is null
+        and contains_generation_ceiling is null
+        and contains_depth_32 is null
+        and contains_depth_64 is null
+        and contains_depth_128 is null
+        and contains_depth_256 is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_recursive,
+            missing_union_all,
+            missing_predecessor,
+            contains_fact_key_hash,
+            contains_generation_ceiling,
+            contains_depth_32,
+            contains_depth_64,
+            contains_depth_128,
+            contains_depth_256
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('recursive' in lower(helper_definition.definition)) = 0
+                    then 'missing_recursive'
+            end as missing_recursive,
+            case
+                when position('union all' in lower(helper_definition.definition)) = 0
+                    then 'missing_union_all'
+            end as missing_union_all,
+            case
+                when position(
+                    'predecessor_reported_fact_id' in lower(helper_definition.definition)
+                ) = 0 then 'missing_predecessor'
+            end as missing_predecessor,
+            case
+                when position('fact_key_hash' in lower(helper_definition.definition)) > 0
+                    then 'contains_fact_key_hash'
+            end as contains_fact_key_hash,
+            case
+                when position('generations <' in lower(helper_definition.definition)) > 0
+                    then 'contains_generation_ceiling'
+            end as contains_generation_ceiling,
+            case
+                when position('< 32' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_32'
+            end as contains_depth_32,
+            case
+                when position('< 64' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_64'
+            end as contains_depth_64,
+            case
+                when position('< 128' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_128'
+            end as contains_depth_128,
+            case
+                when position('< 256' in lower(helper_definition.definition)) > 0
+                    then 'contains_depth_256'
+            end as contains_depth_256
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.reported_fact_revision_ancestry'::regclass,
+                false
+            ) as definition
+        ) as helper_definition
+    ) as helper_tokens
+), pr16_current_observed_definition_gate as (
+    select
+        contains_review_decision is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            contains_review_decision,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('review_decision' in lower(observed_definition.definition)) > 0
+                    then 'contains_review_decision'
+            end as contains_review_decision,
+            case
+                when position('now()' in lower(observed_definition.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(observed_definition.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(observed_definition.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.current_observed_facts'::regclass,
+                false
+            ) as definition
+        ) as observed_definition
+    ) as observed_tokens
+), pr16_observed_asof_definition_gate as (
+    select
+        missing_cutoff_eligible_facts is null
+        and missing_ancestor_after_cutoff is null
+        and missing_fact_observed_by_cutoff is null
+        and missing_eligible_child is null
+        and missing_null_cutoff_guard is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_cutoff_eligible_facts,
+            missing_ancestor_after_cutoff,
+            missing_fact_observed_by_cutoff,
+            missing_eligible_child,
+            missing_null_cutoff_guard,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position('cutoff_eligible_facts' in lower(observed_function.definition)) = 0
+                    then 'missing_cutoff_eligible_facts'
+            end as missing_cutoff_eligible_facts,
+            case
+                when lower(observed_function.definition)
+                    !~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
+                    then 'missing_ancestor_after_cutoff'
+            end as missing_ancestor_after_cutoff,
+            case
+                when lower(observed_function.definition)
+                    !~ 'first_observed_at[[:space:]]*<=[[:space:]]*cutoff'
+                    then 'missing_fact_observed_by_cutoff'
+            end as missing_fact_observed_by_cutoff,
+            case
+                when position('eligible_child' in lower(observed_function.definition)) = 0
+                    then 'missing_eligible_child'
+            end as missing_eligible_child,
+            case
+                when position('cutoff is not null' in lower(observed_function.definition)) = 0
+                    then 'missing_null_cutoff_guard'
+            end as missing_null_cutoff_guard,
+            case
+                when position('now()' in lower(observed_function.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(observed_function.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(observed_function.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_functiondef(
+                'serving.observed_facts_as_of(timestamptz)'::regprocedure
+            ) as definition
+        ) as observed_function
+    ) as observed_function_tokens
+), pr16_current_publishable_definition_gate as (
+    select
+        missing_effective_review is null
+        and contains_as_of_review is null
+        and missing_accept is null
+        and missing_frontier_cardinality is null
+        and groups_by_fact_key_hash is null
+        and contains_order_by is null
+        and contains_correction_walk is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null
+        and missing_lineage_root is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_effective_review,
+            contains_as_of_review,
+            missing_accept,
+            missing_frontier_cardinality,
+            groups_by_fact_key_hash,
+            contains_order_by,
+            contains_correction_walk,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star,
+            missing_lineage_root
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position(
+                    'effective_review_decisions' in lower(publishable_definition.definition)
+                ) = 0
+                or position(
+                    'effective_review_decisions_as_of' in lower(publishable_definition.definition)
+                ) > 0
+                    then 'missing_effective_review'
+            end as missing_effective_review,
+            case
+                when position(
+                    'effective_review_decisions_as_of' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_as_of_review'
+            end as contains_as_of_review,
+            case
+                when position('decision' in lower(publishable_definition.definition)) = 0
+                    or position('accept' in lower(publishable_definition.definition)) = 0
+                    then 'missing_accept'
+            end as missing_accept,
+            case
+                when lower(publishable_definition.definition)
+                    !~ 'having[[:space:]]+.{0,80}count\(\*\).{0,40}1'
+                    then 'missing_frontier_cardinality'
+            end as missing_frontier_cardinality,
+            case
+                when lower(publishable_definition.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
+                    or lower(publishable_definition.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact\.fact_key_hash'
+                    then 'groups_by_fact_key_hash'
+            end as groups_by_fact_key_hash,
+            case
+                when position('order by' in lower(publishable_definition.definition)) > 0
+                    then 'contains_order_by'
+            end as contains_order_by,
+            case
+                when position(
+                    'corrects_review_decision_id' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_correction_walk'
+            end as contains_correction_walk,
+            case
+                when position('now()' in lower(publishable_definition.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position(
+                    'clock_timestamp()' in lower(publishable_definition.definition)
+                ) > 0 then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(publishable_definition.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star,
+            case
+                when position(
+                    'lineage_root_reported_fact_id' in lower(publishable_definition.definition)
+                ) = 0 then 'missing_lineage_root'
+            end as missing_lineage_root
+        from (
+            select pg_catalog.pg_get_viewdef(
+                'serving.current_publishable_facts'::regclass,
+                false
+            ) as definition
+        ) as publishable_definition
+    ) as publishable_tokens
+), pr16_publishable_asof_definition_gate as (
+    select
+        missing_cutoff_eligible_facts is null
+        and missing_eligible_descendant is null
+        and missing_as_of_review is null
+        and missing_ancestor_after_cutoff is null
+        and missing_accept is null
+        and missing_frontier_cardinality is null
+        and groups_by_fact_key_hash is null
+        and contains_order_by is null
+        and contains_correction_walk is null
+        and contains_now is null
+        and contains_clock_timestamp is null
+        and contains_select_star is null as valid,
+        coalesce(nullif(concat_ws(
+            ',',
+            missing_cutoff_eligible_facts,
+            missing_eligible_descendant,
+            missing_as_of_review,
+            missing_ancestor_after_cutoff,
+            missing_accept,
+            missing_frontier_cardinality,
+            groups_by_fact_key_hash,
+            contains_order_by,
+            contains_correction_walk,
+            contains_now,
+            contains_clock_timestamp,
+            contains_select_star
+        ), ''), 'ok') as detail
+    from (
+        select
+            case
+                when position(
+                    'cutoff_eligible_facts' in lower(publishable_function.definition)
+                ) = 0 then 'missing_cutoff_eligible_facts'
+            end as missing_cutoff_eligible_facts,
+            case
+                when position(
+                    'eligible_descendant' in lower(publishable_function.definition)
+                ) = 0 then 'missing_eligible_descendant'
+            end as missing_eligible_descendant,
+            case
+                when position(
+                    'effective_review_decisions_as_of' in lower(publishable_function.definition)
+                ) = 0 then 'missing_as_of_review'
+            end as missing_as_of_review,
+            case
+                when lower(publishable_function.definition)
+                    !~ 'ancestor\.first_observed_at[[:space:]]*>[[:space:]]*cutoff'
+                    then 'missing_ancestor_after_cutoff'
+            end as missing_ancestor_after_cutoff,
+            case
+                when position('decision' in lower(publishable_function.definition)) = 0
+                    or position('accept' in lower(publishable_function.definition)) = 0
+                    then 'missing_accept'
+            end as missing_accept,
+            case
+                when lower(publishable_function.definition)
+                    !~ 'having[[:space:]]+.{0,80}count\(\*\).{0,40}1'
+                    then 'missing_frontier_cardinality'
+            end as missing_frontier_cardinality,
+            case
+                when lower(publishable_function.definition)
+                    ~ 'group[[:space:]]+by[[:space:]]+fact_key_hash'
+                    then 'groups_by_fact_key_hash'
+            end as groups_by_fact_key_hash,
+            case
+                when position('order by' in lower(publishable_function.definition)) > 0
+                    then 'contains_order_by'
+            end as contains_order_by,
+            case
+                when position(
+                    'corrects_review_decision_id' in lower(publishable_function.definition)
+                ) > 0 then 'contains_correction_walk'
+            end as contains_correction_walk,
+            case
+                when position('now()' in lower(publishable_function.definition)) > 0
+                    then 'contains_now'
+            end as contains_now,
+            case
+                when position('clock_timestamp()' in lower(publishable_function.definition)) > 0
+                    then 'contains_clock_timestamp'
+            end as contains_clock_timestamp,
+            case
+                when lower(publishable_function.definition) ~ 'select[[:space:]]+\*'
+                    then 'contains_select_star'
+            end as contains_select_star
+        from (
+            select pg_catalog.pg_get_functiondef(
+                'serving.publishable_facts_as_of(timestamptz)'::regprocedure
+            ) as definition
+        ) as publishable_function
+    ) as publishable_function_tokens
+), pr16_definition_gate as (
+    select
+        helper.valid
+        and current_observed.valid
+        and observed_asof.valid
+        and current_publishable.valid
+        and publishable_asof.valid as valid
+    from pr16_helper_definition_gate as helper
+    cross join pr16_current_observed_definition_gate as current_observed
+    cross join pr16_observed_asof_definition_gate as observed_asof
+    cross join pr16_current_publishable_definition_gate as current_publishable
+    cross join pr16_publishable_asof_definition_gate as publishable_asof
+), pr16_access_gate as (
+    select
+        pg_catalog.has_table_privilege(
+            'service_role', 'serving.reported_fact_revision_ancestry', 'SELECT'
+        )
+        and pg_catalog.has_table_privilege(
+            'service_role', 'serving.current_observed_facts', 'SELECT'
+        )
+        and pg_catalog.has_table_privilege(
+            'service_role', 'serving.current_publishable_facts', 'SELECT'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role',
+            'serving.reported_fact_revision_ancestry',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role',
+            'serving.current_observed_facts',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and not pg_catalog.has_table_privilege(
+            'service_role',
+            'serving.current_publishable_facts',
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+        and pg_catalog.has_function_privilege(
+            'service_role',
+            'serving.observed_facts_as_of(timestamptz)',
+            'EXECUTE'
+        )
+        and pg_catalog.has_function_privilege(
+            'service_role',
+            'serving.publishable_facts_as_of(timestamptz)',
+            'EXECUTE'
+        )
+        and (
+            select bool_and(not pg_catalog.has_table_privilege(
+                role_name,
+                view_name,
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array[
+                'serving.reported_fact_revision_ancestry',
+                'serving.current_observed_facts',
+                'serving.current_publishable_facts'
+            ]) as view_name
+        )
+        and (
+            select bool_and(not pg_catalog.has_function_privilege(
+                role_name,
+                function_name,
+                'EXECUTE'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array[
+                'serving.observed_facts_as_of(timestamptz)',
+                'serving.publishable_facts_as_of(timestamptz)'
+            ]) as function_name
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(relation.relacl, acldefault('r', relation.relowner))
+            ) as relation_acl
+            where namespace.nspname = 'serving'
+              and relation.relname in (
+                  'reported_fact_revision_ancestry',
+                  'current_observed_facts',
+                  'current_publishable_facts'
+              )
+              and relation_acl.grantee = 0
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(function.proacl, acldefault('f', function.proowner))
+            ) as function_acl
+            where namespace.nspname = 'serving'
+              and function.proname in (
+                  'observed_facts_as_of',
+                  'publishable_facts_as_of'
+              )
+              and function_acl.grantee = 0
+        ) as valid
+), pr16_boundary_gate as (
+    select
+        not exists (
+            select 1
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname in ('semantic', 'metrics')
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname in ('semantic', 'metrics')
+        )
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('semantic.concept_mappings') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('metrics.metric_definitions') is null
+        and pg_catalog.to_regclass('metrics.metric_observations') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
+        and not exists (
+            select 1
+            from pg_catalog.pg_policies
+            where schemaname = 'serving'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'serving'
+              and function.prosecdef
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_index index_definition
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'serving'
+        )
+        and (
+            select count(*) = 3
+            from pg_catalog.pg_index index_definition
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'reported'
+              and table_relation.relname = 'reported_facts'
+              and not exists (
+                  select 1
+                  from pg_catalog.pg_constraint backing_constraint
+                  where backing_constraint.conindid = index_definition.indexrelid
+              )
+        )
+        and (
+            select count(*) = 2
+            from pg_catalog.pg_index index_definition
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'audit'
+              and table_relation.relname = 'review_decisions'
+              and not exists (
+                  select 1
+                  from pg_catalog.pg_constraint backing_constraint
+                  where backing_constraint.conindid = index_definition.indexrelid
+              )
+        ) as valid
+)
+select
+    pr16_relation_gate.valid as pr16_relation_gate,
+    pr16_function_gate.valid as pr16_function_gate,
+    pr16_security_invoker_gate.valid as pr16_security_invoker_gate,
+    pr16_helper_column_gate.valid as pr16_helper_column_gate,
+    pr16_observed_column_gate.valid as pr16_observed_column_gate,
+    pr16_publishable_column_gate.valid as pr16_publishable_column_gate,
+    pr16_helper_definition_gate.valid as pr16_helper_definition_gate,
+    pr16_helper_definition_gate.detail as pr16_helper_definition_detail,
+    pr16_current_observed_definition_gate.valid as pr16_current_observed_definition_gate,
+    pr16_current_observed_definition_gate.detail as pr16_current_observed_definition_detail,
+    pr16_observed_asof_definition_gate.valid as pr16_observed_asof_definition_gate,
+    pr16_observed_asof_definition_gate.detail as pr16_observed_asof_definition_detail,
+    pr16_current_publishable_definition_gate.valid
+        as pr16_current_publishable_definition_gate,
+    pr16_current_publishable_definition_gate.detail
+        as pr16_current_publishable_definition_detail,
+    pr16_publishable_asof_definition_gate.valid as pr16_publishable_asof_definition_gate,
+    pr16_publishable_asof_definition_gate.detail as pr16_publishable_asof_definition_detail,
+    pr16_definition_gate.valid as pr16_definition_gate,
+    pr16_access_gate.valid as pr16_access_gate,
+    pr16_boundary_gate.valid as pr16_boundary_gate,
+    (
+        pr16_relation_gate.valid
+        and pr16_function_gate.valid
+        and pr16_security_invoker_gate.valid
+        and pr16_helper_column_gate.valid
+        and pr16_observed_column_gate.valid
+        and pr16_publishable_column_gate.valid
+        and pr16_definition_gate.valid
+        and pr16_access_gate.valid
+        and pr16_boundary_gate.valid
+    ) as pr16_catalog_passed
+from pr16_relation_gate
+cross join pr16_function_gate
+cross join pr16_security_invoker_gate
+cross join pr16_helper_column_gate
+cross join pr16_observed_column_gate
+cross join pr16_publishable_column_gate
+cross join pr16_helper_definition_gate
+cross join pr16_current_observed_definition_gate
+cross join pr16_observed_asof_definition_gate
+cross join pr16_current_publishable_definition_gate
+cross join pr16_publishable_asof_definition_gate
+cross join pr16_definition_gate
+cross join pr16_access_gate
+cross join pr16_boundary_gate
+\gset
+
+\echo PR16 gate relations: :pr16_relation_gate
+\echo PR16 gate functions: :pr16_function_gate
+\echo PR16 gate security_invoker: :pr16_security_invoker_gate
+\echo PR16 gate helper_columns: :pr16_helper_column_gate
+\echo PR16 gate observed_columns: :pr16_observed_column_gate
+\echo PR16 gate publishable_columns: :pr16_publishable_column_gate
+\echo PR16 gate helper_definition: :pr16_helper_definition_gate :pr16_helper_definition_detail
+\echo PR16 gate current_observed_definition: :pr16_current_observed_definition_gate :pr16_current_observed_definition_detail
+\echo PR16 gate observed_asof_definition: :pr16_observed_asof_definition_gate :pr16_observed_asof_definition_detail
+\echo PR16 gate current_publishable_definition: :pr16_current_publishable_definition_gate :pr16_current_publishable_definition_detail
+\echo PR16 gate publishable_asof_definition: :pr16_publishable_asof_definition_gate :pr16_publishable_asof_definition_detail
+\echo PR16 gate definitions: :pr16_definition_gate
+\echo PR16 gate access: :pr16_access_gate
+\echo PR16 gate boundary: :pr16_boundary_gate
+\echo PR16 aggregate catalog: :pr16_catalog_passed
+
+\if :pr16_catalog_passed
+\echo 'PR16 fact query catalog contract passed.'
+\else
+\echo 'PR16 fact query catalog contract failed.'
+do $$
+begin
+    raise exception 'PR16 fact query catalog gate failed.';
+end
+$$;
+\endif
+
+do $$
+declare
+    ids jsonb := '{}'::jsonb;
+    fact_id bigint;
+    predecessor_id bigint;
+    registration_id uuid;
+    identity_hash text;
+    run_id uuid;
+    definition_version integer;
+    parser_version text;
+    spec record;
+    pend_accept bigint;
+    acc_b_accept bigint;
+    cacc_c_accept bigint;
+    rev_a_accept bigint;
+    ident_b_accept bigint;
+    sibj_b_accept bigint;
+    asof_a_accept bigint;
+    asof_b_accept bigint;
+    corr_accept bigint;
+    sib_a_accept bigint;
+    sib_b_accept bigint;
+    sib_c_accept bigint;
+    primary_registration uuid := '00000000-0000-4000-8000-000000000722';
+    alternate_registration uuid := '00000000-0000-4000-8000-000000000723';
+    hash_a text := repeat('a', 64);
+    hash_b text := repeat('b', 64);
+    run_v1 uuid := '00000000-0000-4000-8000-000000000801';
+    run_v2 uuid := '00000000-0000-4000-8000-000000000802';
+    run_def2 uuid := '00000000-0000-4000-8000-000000000803';
+    run_identity uuid := '00000000-0000-4000-8000-000000000804';
+    role_name text;
+    statement_text text;
+    denied boolean;
+begin
+    for spec in
+        select *
+        from (
+            values
+                ('obs_root'::text, null::text, 'pr16_obs_root'::text, 'root'::text,
+                    '2026-07-01T00:00:00Z'::timestamptz, null::text, 'obs_root'::text),
+                ('obs_ab_a', null, 'pr16_obs_ab', 'root',
+                    '2026-07-01T00:00:00Z', null, 'obs_ab_a'),
+                ('obs_ab_b', 'obs_ab_a', 'pr16_obs_ab', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'obs_ab_b'),
+                ('obs_abc_a', null, 'pr16_obs_abc', 'root',
+                    '2026-07-01T00:00:00Z', null, 'obs_abc_a'),
+                ('obs_abc_b', 'obs_abc_a', 'pr16_obs_abc', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'obs_abc_b'),
+                ('obs_abc_c', 'obs_abc_b', 'pr16_obs_abc', 'def2',
+                    '2026-07-03T00:00:00Z', 'EXTRACTION_CORRECTION', 'obs_abc_c'),
+                ('branch_a', null, 'pr16_obs_branch', 'root',
+                    '2026-07-01T00:00:00Z', null, 'branch_a'),
+                ('branch_c', 'branch_a', 'pr16_obs_branch', 'def2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'branch_c'),
+                ('branch_b', 'branch_a', 'pr16_obs_branch', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'branch_b'),
+                ('pend_a', null, 'pr16_pub_pending', 'root',
+                    '2026-07-01T00:00:00Z', null, 'pend_a'),
+                ('pend_b', 'pend_a', 'pr16_pub_pending', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'pend_b'),
+                ('rej_a', null, 'pr16_pub_reject', 'root',
+                    '2026-07-01T00:00:00Z', null, 'rej_a'),
+                ('rej_b', 'rej_a', 'pr16_pub_reject', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'rej_b'),
+                ('acc_a', null, 'pr16_pub_accept', 'root',
+                    '2026-07-01T00:00:00Z', null, 'acc_a'),
+                ('acc_b', 'acc_a', 'pr16_pub_accept', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'acc_b'),
+                ('rev_a', null, 'pr16_pub_revoke', 'root',
+                    '2026-07-01T00:00:00Z', null, 'rev_a'),
+                ('rev_b', 'rev_a', 'pr16_pub_revoke', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'rev_b'),
+                ('reja_a', null, 'pr16_pub_reject_after', 'root',
+                    '2026-07-01T00:00:00Z', null, 'reja_a'),
+                ('reja_b', 'reja_a', 'pr16_pub_reject_after', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'reja_b'),
+                ('cpend_a', null, 'pr16_pub_c_pending', 'root',
+                    '2026-07-01T00:00:00Z', null, 'cpend_a'),
+                ('cpend_b', 'cpend_a', 'pr16_pub_c_pending', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'cpend_b'),
+                ('cpend_c', 'cpend_b', 'pr16_pub_c_pending', 'def2',
+                    '2026-07-03T00:00:00Z', 'EXTRACTION_CORRECTION', 'cpend_c'),
+                ('cacc_a', null, 'pr16_pub_c_accept', 'root',
+                    '2026-07-01T00:00:00Z', null, 'cacc_a'),
+                ('cacc_b', 'cacc_a', 'pr16_pub_c_accept', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'cacc_b'),
+                ('cacc_c', 'cacc_b', 'pr16_pub_c_accept', 'def2',
+                    '2026-07-03T00:00:00Z', 'EXTRACTION_CORRECTION', 'cacc_c'),
+                ('asof_a', null, 'pr16_asof', 'root',
+                    '2026-07-01T00:00:00Z', null, 'asof_a'),
+                ('asof_b', 'asof_a', 'pr16_asof', 'parser2',
+                    '2026-07-10T00:00:00Z', 'EXTRACTION_CORRECTION', 'asof_b'),
+                ('future_a', null, 'pr16_future', 'root',
+                    '2026-07-10T00:00:00Z', null, 'future_a'),
+                ('future_b', 'future_a', 'pr16_future', 'parser2',
+                    '2026-07-05T00:00:00Z', 'EXTRACTION_CORRECTION', 'future_b'),
+                ('corr_a', null, 'pr16_correction', 'root',
+                    '2026-07-01T00:00:00Z', null, 'corr_a'),
+                ('ident_a', null, 'pr16_identity', 'root',
+                    '2026-07-01T00:00:00Z', null, 'shared'),
+                ('ident_b', 'ident_a', 'pr16_identity', 'identity',
+                    '2026-07-02T00:00:00Z', 'IDENTITY_CORRECTION', 'shared'),
+                ('hash_left', null, 'pr16_same_hash', 'root',
+                    '2026-07-01T00:00:00Z', null, 'hash_left'),
+                ('hash_right', null, 'pr16_same_hash', 'root',
+                    '2026-07-01T00:00:00Z', null, 'hash_right'),
+                ('sib_a', null, 'pr16_sibling', 'root',
+                    '2026-07-01T00:00:00Z', null, 'sib_a'),
+                ('sib_c', 'sib_a', 'pr16_sibling', 'def2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'sib_c'),
+                ('sib_b', 'sib_a', 'pr16_sibling', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'sib_b'),
+                ('sibj_a', null, 'pr16_sibling_reject', 'root',
+                    '2026-07-01T00:00:00Z', null, 'sibj_a'),
+                ('sibj_c', 'sibj_a', 'pr16_sibling_reject', 'def2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'sibj_c'),
+                ('sibj_b', 'sibj_a', 'pr16_sibling_reject', 'parser2',
+                    '2026-07-02T00:00:00Z', 'EXTRACTION_CORRECTION', 'sibj_b')
+        ) as fixture(
+            fact_key,
+            predecessor_key,
+            lineage,
+            variant,
+            observed_at,
+            reason,
+            locator_member
+        )
+    loop
+        predecessor_id := null;
+        if spec.predecessor_key is not null then
+            predecessor_id := (ids ->> spec.predecessor_key)::bigint;
+            if predecessor_id is null then
+                raise exception 'PR16 fixture predecessor % is missing', spec.predecessor_key;
+            end if;
+        end if;
+
+        registration_id := primary_registration;
+        identity_hash := hash_a;
+        run_id := run_v1;
+        definition_version := 1;
+        parser_version := '1';
+        if spec.variant = 'parser2' then
+            run_id := run_v2;
+            parser_version := '2';
+        elsif spec.variant = 'def2' then
+            run_id := run_def2;
+            definition_version := 2;
+        elsif spec.variant = 'identity' then
+            run_id := run_identity;
+            identity_hash := hash_b;
+            registration_id := alternate_registration;
+        elsif spec.variant <> 'root' then
+            raise exception 'PR16 unknown fixture variant %', spec.variant;
+        end if;
+
+        insert into reported.reported_facts (
+            regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+            reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+            source_definition_version, parser_implementation_key, parser_implementation_version,
+            identity_definition_hash, period_kind, period_end, unit_code, dimensions,
+            raw_value, parsed_value, locator_kind, source_locator, first_observed_at,
+            predecessor_reported_fact_id, supersession_reason
+        ) values (
+            registration_id,
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000751',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000761',
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000101',
+            run_id,
+            definition_version,
+            'test_parser',
+            parser_version,
+            identity_hash,
+            'instant',
+            date '2026-06-30',
+            'MXN',
+            jsonb_build_object('scenario', spec.lineage),
+            '1',
+            1,
+            'csv',
+            jsonb_build_object('lineage', spec.lineage, 'member', spec.locator_member),
+            spec.observed_at,
+            predecessor_id,
+            spec.reason
+        ) returning reported_fact_id into fact_id;
+
+        ids := ids || jsonb_build_object(spec.fact_key, fact_id);
+    end loop;
+
+    if (select count(*) from jsonb_object_keys(ids)) <> 40 then
+        raise exception 'PR16 fixture map does not contain 40 facts';
+    end if;
+
+    if not coalesce((
+        select count(*) = 3
+            and bool_or(link.ancestor_reported_fact_id = (ids->>'obs_abc_c')::bigint
+                and link.generations = 0)
+            and bool_or(link.ancestor_reported_fact_id = (ids->>'obs_abc_b')::bigint
+                and link.generations = 1)
+            and bool_or(link.ancestor_reported_fact_id = (ids->>'obs_abc_a')::bigint
+                and link.generations = 2)
+        from serving.reported_fact_revision_ancestry as link
+        where link.reported_fact_id = (ids->>'obs_abc_c')::bigint
+    ), false) then
+        raise exception 'PR16 ancestry did not walk the predecessor chain to its root';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'obs_root')::bigint)
+            and bool_and(observed.lineage_root_reported_fact_id = (ids->>'obs_root')::bigint)
+        from serving.current_observed_facts as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'obs_root')::bigint
+    ), false) then
+        raise exception 'PR16 root-only observed head failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'obs_ab_b')::bigint)
+        from serving.current_observed_facts as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'obs_ab_a')::bigint
+    ), false) then
+        raise exception 'PR16 linear observed A to B failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'obs_abc_c')::bigint)
+        from serving.current_observed_facts as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'obs_abc_a')::bigint
+    ), false) then
+        raise exception 'PR16 linear observed A to C failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 2
+            and bool_or(observed.reported_fact_id = (ids->>'branch_b')::bigint)
+            and bool_or(observed.reported_fact_id = (ids->>'branch_c')::bigint)
+        from serving.current_observed_facts as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'branch_a')::bigint
+    ), false) then
+        raise exception 'PR16 branching observed heads were collapsed';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'pend_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into pend_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values
+        ((ids->>'rej_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'rej_b')::bigint, 'REJECT', '2026-07-03T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 rejection.');
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'acc_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'acc_b')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into acc_b_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'rev_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into rev_a_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'rev_b')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'rev_b')::bigint, 'REVOKE', '2026-07-04T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 revocation.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'reja_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'reja_b')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'reja_b')::bigint, 'REJECT', '2026-07-04T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 rejection.'
+    );
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values
+        ((ids->>'cpend_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'cpend_b')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.');
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values
+        ((ids->>'cacc_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'cacc_b')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'cacc_c')::bigint, 'ACCEPT', '2026-07-04T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.');
+
+    select review.review_decision_id
+    into cacc_c_accept
+    from audit.effective_review_decisions as review
+    where review.reported_fact_id = (ids->>'cacc_c')::bigint;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'pend_a')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+            and bool_and(row.effective_review_decision_id = pend_accept)
+            and bool_and(row.effective_decided_at = '2026-07-02T00:00:00Z')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'pend_a')::bigint
+    ), false) then
+        raise exception 'PR16 pending successor displaced an accepted ancestor';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'rej_a')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'rej_a')::bigint
+    ), false) then
+        raise exception 'PR16 rejected successor displaced an accepted ancestor';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'acc_b')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+            and bool_and(row.effective_review_decision_id = acc_b_accept)
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'acc_a')::bigint
+    ), false) then
+        raise exception 'PR16 accepted successor did not displace its ancestor';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'rev_a')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+            and bool_and(row.effective_review_decision_id = rev_a_accept)
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'rev_a')::bigint
+    ), false) then
+        raise exception 'PR16 revocation did not restore the accepted ancestor';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'reja_a')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'reja_a')::bigint
+    ), false) then
+        raise exception 'PR16 later rejection did not restore the accepted ancestor';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'cpend_b')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'cpend_a')::bigint
+    ), false) then
+        raise exception 'PR16 pending grandchild displaced the accepted child';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'cacc_c')::bigint)
+            and bool_and(row.effective_decision = 'ACCEPT')
+            and bool_and(row.effective_review_decision_id = cacc_c_accept)
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'cacc_a')::bigint
+    ), false) then
+        raise exception 'PR16 accepted grandchild did not become the frontier';
+    end if;
+
+    if exists (
+        select 1
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id in (
+            (ids->>'obs_root')::bigint,
+            (ids->>'obs_ab_a')::bigint,
+            (ids->>'obs_abc_a')::bigint,
+            (ids->>'branch_a')::bigint
+        )
+    ) then
+        raise exception 'PR16 unaccepted observed lineage became publishable';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'asof_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into asof_a_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'asof_b')::bigint, 'ACCEPT', '2026-07-14T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into asof_b_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'asof_b')::bigint, 'REVOKE', '2026-07-20T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 revocation.'
+    );
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'asof_a')::bigint)
+        from serving.observed_facts_as_of('2026-07-05T00:00:00Z') as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of observed head was displaced by a future child';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'asof_a')::bigint)
+            and bool_and(row.effective_review_decision_id = asof_a_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.publishable_facts_as_of('2026-07-05T00:00:00Z') as row
+        where row.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of before the successor observation failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'asof_b')::bigint)
+        from serving.observed_facts_as_of('2026-07-10T00:00:00Z') as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of observation cutoff was not inclusive';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'asof_a')::bigint)
+            and bool_and(row.effective_review_decision_id = asof_a_accept)
+        from serving.publishable_facts_as_of('2026-07-12T00:00:00Z') as row
+        where row.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false)
+    or not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'asof_b')::bigint)
+        from serving.observed_facts_as_of('2026-07-12T00:00:00Z') as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of after observation and before acceptance failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'asof_b')::bigint)
+            and bool_and(row.effective_review_decision_id = asof_b_accept)
+            and bool_and(row.effective_decided_at = '2026-07-14T00:00:00Z')
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.publishable_facts_as_of('2026-07-15T00:00:00Z') as row
+        where row.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of after acceptance was rewritten by a later revocation';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'asof_a')::bigint)
+            and bool_and(row.effective_review_decision_id = asof_a_accept)
+        from serving.publishable_facts_as_of('2026-07-21T00:00:00Z') as row
+        where row.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false)
+    or not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'asof_b')::bigint)
+        from serving.observed_facts_as_of('2026-07-21T00:00:00Z') as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'asof_a')::bigint
+    ), false) then
+        raise exception 'PR16 as-of after revocation did not restore the accepted ancestor';
+    end if;
+
+    if exists (
+        select 1
+        from serving.observed_facts_as_of('2026-07-06T00:00:00Z') as observed
+        where observed.reported_fact_id in (
+                (ids->>'future_a')::bigint,
+                (ids->>'future_b')::bigint
+            )
+           or observed.lineage_root_reported_fact_id in (
+                (ids->>'future_a')::bigint,
+                (ids->>'future_b')::bigint
+            )
+    ) or exists (
+        select 1
+        from serving.publishable_facts_as_of('2026-07-06T00:00:00Z') as row
+        where row.reported_fact_id in (
+                (ids->>'future_a')::bigint,
+                (ids->>'future_b')::bigint
+            )
+           or row.lineage_root_reported_fact_id in (
+                (ids->>'future_a')::bigint,
+                (ids->>'future_b')::bigint
+            )
+    ) then
+        raise exception 'PR16 future ancestry was visible before its root';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(observed.reported_fact_id = (ids->>'future_b')::bigint)
+            and bool_and(observed.lineage_root_reported_fact_id = (ids->>'future_a')::bigint)
+        from serving.observed_facts_as_of('2026-07-11T00:00:00Z') as observed
+        where observed.reported_fact_id = (ids->>'future_b')::bigint
+    ), false) then
+        raise exception 'PR16 future ancestry did not recover after the root was visible';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'corr_a')::bigint, 'ACCEPT', '2026-07-01T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into corr_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason,
+        corrects_review_decision_id
+    ) values (
+        (ids->>'corr_a')::bigint, 'REJECT', '2026-07-10T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 correcting rejection.', corr_accept
+    );
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.effective_review_decision_id = corr_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+            and bool_and(row.effective_decided_at = '2026-07-01T00:00:00Z')
+        from serving.publishable_facts_as_of('2026-07-05T00:00:00Z') as row
+        where row.reported_fact_id = (ids->>'corr_a')::bigint
+    ), false) then
+        raise exception 'PR16 earlier cutoff lost the corrected acceptance';
+    end if;
+
+    if exists (
+        select 1
+        from serving.publishable_facts_as_of('2026-07-11T00:00:00Z') as row
+        where row.lineage_root_reported_fact_id = (ids->>'corr_a')::bigint
+    ) or exists (
+        select 1
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'corr_a')::bigint
+    ) then
+        raise exception 'PR16 correcting rejection remained publishable';
+    end if;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(successor.fact_key_hash <> root_fact.fact_key_hash)
+            and bool_and(
+                successor.regulatory_registration_id
+                    <> root_fact.regulatory_registration_id
+            )
+            and bool_and(successor.predecessor_reported_fact_id = root_fact.reported_fact_id)
+        from reported.reported_facts as successor
+        join reported.reported_facts as root_fact
+          on root_fact.reported_fact_id = successor.predecessor_reported_fact_id
+        where successor.reported_fact_id = (ids->>'ident_b')::bigint
+          and root_fact.reported_fact_id = (ids->>'ident_a')::bigint
+    ), false) then
+        raise exception 'PR16 identity correction did not stay on one predecessor lineage';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values
+        ((ids->>'ident_a')::bigint, 'ACCEPT', '2026-07-03T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'ident_b')::bigint, 'ACCEPT', '2026-07-04T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.');
+
+    select review.review_decision_id
+    into ident_b_accept
+    from audit.effective_review_decisions as review
+    where review.reported_fact_id = (ids->>'ident_b')::bigint;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'ident_b')::bigint)
+            and bool_and(row.lineage_root_reported_fact_id = (ids->>'ident_a')::bigint)
+            and bool_and(row.effective_review_decision_id = ident_b_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'ident_a')::bigint
+    ), false) then
+        raise exception 'PR16 accepted identity correction did not displace its root';
+    end if;
+
+    if not coalesce((
+        select count(*) = 2
+            and count(distinct observed.lineage_root_reported_fact_id) = 2
+            and bool_and(observed.lineage_root_reported_fact_id = observed.reported_fact_id)
+            and bool_and(left_fact.fact_key_hash = right_fact.fact_key_hash)
+        from serving.current_observed_facts as observed
+        join reported.reported_facts as left_fact
+          on left_fact.reported_fact_id = (ids->>'hash_left')::bigint
+        join reported.reported_facts as right_fact
+          on right_fact.reported_fact_id = (ids->>'hash_right')::bigint
+        where observed.reported_fact_id in (
+            (ids->>'hash_left')::bigint,
+            (ids->>'hash_right')::bigint
+        )
+    ), false) then
+        raise exception 'PR16 same fact key collapsed independent predecessor roots';
+    end if;
+
+    if not coalesce((
+        select count(*) = 2
+            and bool_or(observed.reported_fact_id = (ids->>'sib_b')::bigint)
+            and bool_or(observed.reported_fact_id = (ids->>'sib_c')::bigint)
+        from serving.current_observed_facts as observed
+        where observed.lineage_root_reported_fact_id = (ids->>'sib_a')::bigint
+    ), false) then
+        raise exception 'PR16 sibling observed branches were collapsed';
+    end if;
+
+    if (ids->>'sib_c')::bigint >= (ids->>'sib_b')::bigint then
+        raise exception 'PR16 sibling fixture did not give C the smaller id';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'sib_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into sib_a_accept;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'sib_b')::bigint, 'ACCEPT', '2026-07-09T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into sib_b_accept;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'sib_b')::bigint)
+            and bool_and(row.effective_review_decision_id = sib_b_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'sib_a')::bigint
+    ), false) then
+        raise exception 'PR16 one accepted sibling with a pending sibling failed';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'sib_c')::bigint, 'ACCEPT', '2026-07-04T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'
+    ) returning review_decision_id into sib_c_accept;
+
+    if sib_c_accept = sib_b_accept
+        or not exists (
+            select 1
+            from audit.review_decisions as decision_event
+            where decision_event.review_decision_id = sib_c_accept
+              and decision_event.decided_at = '2026-07-04T00:00:00Z'
+        )
+        or not exists (
+            select 1
+            from audit.review_decisions as decision_event
+            where decision_event.review_decision_id = sib_b_accept
+              and decision_event.decided_at = '2026-07-09T00:00:00Z'
+        )
+    then
+        raise exception 'PR16 sibling timestamp and id ordering fixture failed';
+    end if;
+
+    if not coalesce((
+        select count(*) = 2 and bool_and(review.decision = 'ACCEPT')
+        from audit.effective_review_decisions as review
+        where review.reported_fact_id in (
+            (ids->>'sib_b')::bigint,
+            (ids->>'sib_c')::bigint
+        )
+    ), false) or exists (
+        select 1
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'sib_a')::bigint
+           or row.reported_fact_id in (
+                (ids->>'sib_a')::bigint,
+                (ids->>'sib_b')::bigint,
+                (ids->>'sib_c')::bigint
+            )
+    ) then
+        raise exception 'PR16 sibling ACCEPT conflict returned a publishable row';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'sib_c')::bigint, 'REVOKE', '2026-07-12T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 revocation.'
+    );
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'sib_b')::bigint)
+            and bool_and(row.effective_review_decision_id = sib_b_accept)
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'sib_a')::bigint
+    ), false) then
+        raise exception 'PR16 sibling revocation did not leave the sole frontier';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        (ids->>'sib_b')::bigint, 'REVOKE', '2026-07-13T00:00:00Z',
+        'HUMAN', 'lead_reviewer', 'Synthetic PR16 revocation.'
+    );
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'sib_a')::bigint)
+            and bool_and(row.effective_review_decision_id = sib_a_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'sib_a')::bigint
+    ), false) then
+        raise exception 'PR16 sibling recovery did not restore the accepted ancestor';
+    end if;
+
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values
+        ((ids->>'sibj_a')::bigint, 'ACCEPT', '2026-07-02T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'sibj_b')::bigint, 'ACCEPT', '2026-07-08T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 acceptance.'),
+        ((ids->>'sibj_c')::bigint, 'REJECT', '2026-07-03T00:00:00Z',
+            'HUMAN', 'lead_reviewer', 'Synthetic PR16 rejection.');
+
+    select review.review_decision_id
+    into sibj_b_accept
+    from audit.effective_review_decisions as review
+    where review.reported_fact_id = (ids->>'sibj_b')::bigint;
+
+    if not coalesce((
+        select count(*) = 1
+            and bool_and(row.reported_fact_id = (ids->>'sibj_b')::bigint)
+            and bool_and(row.effective_review_decision_id = sibj_b_accept)
+            and bool_and(row.effective_decision = 'ACCEPT')
+        from serving.current_publishable_facts as row
+        where row.lineage_root_reported_fact_id = (ids->>'sibj_a')::bigint
+    ), false) then
+        raise exception 'PR16 rejected sibling removed the accepted sibling';
+    end if;
+
+    if (select count(*) from serving.observed_facts_as_of(null)) <> 0
+        or (select count(*) from serving.publishable_facts_as_of(null)) <> 0
+    then
+        raise exception 'PR16 null cutoff returned rows';
+    end if;
+
+    if exists (
+        select
+            observed.lineage_root_reported_fact_id,
+            observed.reported_fact_id,
+            observed.regulatory_registration_id,
+            observed.regulator_id,
+            observed.regulatory_concept_id,
+            observed.source_id,
+            observed.reporting_scope_id,
+            observed.source_artifact_id,
+            observed.source_release_id,
+            observed.ingestion_run_id,
+            observed.source_definition_version,
+            observed.parser_implementation_key,
+            observed.parser_implementation_version,
+            observed.identity_definition_hash,
+            observed.period_kind,
+            observed.period_start,
+            observed.period_end,
+            observed.unit_code,
+            observed.dimensions,
+            observed.raw_value,
+            observed.parsed_value,
+            observed.raw_label,
+            observed.locator_kind,
+            observed.source_locator,
+            observed.locator_hash,
+            observed.fact_key_hash,
+            observed.first_observed_at,
+            observed.predecessor_reported_fact_id,
+            observed.supersession_reason
+        from serving.current_observed_facts as observed
+        except
+        select
+            as_of_row.lineage_root_reported_fact_id,
+            as_of_row.reported_fact_id,
+            as_of_row.regulatory_registration_id,
+            as_of_row.regulator_id,
+            as_of_row.regulatory_concept_id,
+            as_of_row.source_id,
+            as_of_row.reporting_scope_id,
+            as_of_row.source_artifact_id,
+            as_of_row.source_release_id,
+            as_of_row.ingestion_run_id,
+            as_of_row.source_definition_version,
+            as_of_row.parser_implementation_key,
+            as_of_row.parser_implementation_version,
+            as_of_row.identity_definition_hash,
+            as_of_row.period_kind,
+            as_of_row.period_start,
+            as_of_row.period_end,
+            as_of_row.unit_code,
+            as_of_row.dimensions,
+            as_of_row.raw_value,
+            as_of_row.parsed_value,
+            as_of_row.raw_label,
+            as_of_row.locator_kind,
+            as_of_row.source_locator,
+            as_of_row.locator_hash,
+            as_of_row.fact_key_hash,
+            as_of_row.first_observed_at,
+            as_of_row.predecessor_reported_fact_id,
+            as_of_row.supersession_reason
+        from serving.observed_facts_as_of('2099-01-01T00:00:00Z') as as_of_row
+    ) or exists (
+        select
+            as_of_row.lineage_root_reported_fact_id,
+            as_of_row.reported_fact_id,
+            as_of_row.fact_key_hash,
+            as_of_row.first_observed_at
+        from serving.observed_facts_as_of('2099-01-01T00:00:00Z') as as_of_row
+        except
+        select
+            observed.lineage_root_reported_fact_id,
+            observed.reported_fact_id,
+            observed.fact_key_hash,
+            observed.first_observed_at
+        from serving.current_observed_facts as observed
+    ) then
+        raise exception 'PR16 late cutoff observed set diverged from current';
+    end if;
+
+    if exists (
+        select
+            row.lineage_root_reported_fact_id,
+            row.reported_fact_id,
+            row.effective_review_decision_id,
+            row.effective_decision,
+            row.effective_decided_at
+        from serving.current_publishable_facts as row
+        except
+        select
+            as_of_row.lineage_root_reported_fact_id,
+            as_of_row.reported_fact_id,
+            as_of_row.effective_review_decision_id,
+            as_of_row.effective_decision,
+            as_of_row.effective_decided_at
+        from serving.publishable_facts_as_of('2099-01-01T00:00:00Z') as as_of_row
+    ) or exists (
+        select
+            as_of_row.lineage_root_reported_fact_id,
+            as_of_row.reported_fact_id,
+            as_of_row.effective_review_decision_id,
+            as_of_row.effective_decision,
+            as_of_row.effective_decided_at
+        from serving.publishable_facts_as_of('2099-01-01T00:00:00Z') as as_of_row
+        except
+        select
+            row.lineage_root_reported_fact_id,
+            row.reported_fact_id,
+            row.effective_review_decision_id,
+            row.effective_decision,
+            row.effective_decided_at
+        from serving.current_publishable_facts as row
+    ) then
+        raise exception 'PR16 late cutoff publishable set diverged from current';
+    end if;
+
+    if exists (
+        select 1
+        from unnest(array[
+            'serving.reported_fact_revision_ancestry',
+            'serving.current_observed_facts',
+            'serving.current_publishable_facts'
+        ]) as view_name
+        where pg_catalog.has_table_privilege(
+            'service_role',
+            view_name,
+            'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+        )
+    ) then
+        raise exception 'service_role acquired a PR16 write privilege';
+    end if;
+
+    set local role service_role;
+    perform count(*) from serving.current_observed_facts;
+    perform count(*) from serving.current_publishable_facts;
+    perform count(*) from serving.reported_fact_revision_ancestry;
+    perform count(*) from serving.observed_facts_as_of('2099-01-01T00:00:00Z');
+    perform count(*) from serving.publishable_facts_as_of('2099-01-01T00:00:00Z');
+    reset role;
+
+    foreach role_name in array array['anon', 'authenticated']
+    loop
+        execute format('set local role %I', role_name);
+        foreach statement_text in array array[
+            'select count(*) from serving.current_observed_facts',
+            'select count(*) from serving.current_publishable_facts',
+            'select count(*) from serving.reported_fact_revision_ancestry',
+            'select count(*) from serving.observed_facts_as_of(''2099-01-01T00:00:00Z'')',
+            'select count(*) from serving.publishable_facts_as_of(''2099-01-01T00:00:00Z'')'
+        ]
+        loop
+            denied := false;
+            begin
+                execute statement_text;
+            exception
+                when insufficient_privilege then
+                    denied := true;
+            end;
+            if not denied then
+                raise exception 'PR16 allowed % to run %', role_name, statement_text;
+            end if;
+        end loop;
+        reset role;
+    end loop;
+end
+$$;
+
+\echo 'PR16 fact query behavioral smoke passed.'
+
 rollback;
 
 select
@@ -6737,6 +8867,32 @@ select
 do $$
 begin
     raise exception 'PR15a rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    not exists (select 1 from serving.reported_fact_revision_ancestry)
+    and not exists (select 1 from serving.current_observed_facts)
+    and not exists (select 1 from serving.current_publishable_facts)
+    and not exists (
+        select 1 from serving.observed_facts_as_of('2099-01-01T00:00:00Z')
+    )
+    and not exists (
+        select 1 from serving.publishable_facts_as_of('2099-01-01T00:00:00Z')
+    )
+    and not exists (select 1 from reported.reported_facts)
+    and not exists (select 1 from audit.review_decisions)
+    as pr16_rollback_passed
+\gset
+
+\if :pr16_rollback_passed
+\echo 'PR16 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR16 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR16 rollback cleanliness gate failed.';
 end
 $$;
 \endif
