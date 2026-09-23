@@ -194,9 +194,14 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly seven migrations." in current_state
+    assert "The repository contains exactly eight migrations." in current_state
     assert "Production has exactly seven migrations." in current_state
-    assert "No pending production migration remains." in current_state
+    assert (
+        "Exactly one repository migration is pending relative\n  to production: "
+        "`20260922120000_fact_current_as_of_queries.sql`."
+        in current_state
+    )
+    assert "No pending production migration remains." not in current_state
     assert "Production has exactly six migrations." not in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
@@ -315,7 +320,12 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
     assert "It applied only `20260919180000_review_decision_events.sql`." in current_state
     assert "the deployed PR15a\n  review-decision schema." in current_state
     assert "Production has exactly seven migrations." in current_state
-    assert "No pending production migration remains." in current_state
+    assert (
+        "Exactly one repository migration is pending relative\n  to production: "
+        "`20260922120000_fact_current_as_of_queries.sql`."
+        in current_state
+    )
+    assert "No pending production migration remains." not in current_state
     assert "history is aligned at seven, pending migrations are none" in current_state
     assert "the final production dry-run\n  was a no-op." in current_state
     assert "PR15a review-decision schema is merged, deployed, and independently verified" in (
@@ -338,8 +348,12 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
     assert "PR16 fact-level current/as-of objects\n  remain absent." in current_state
     assert "`public.regulatory_bank_metrics_v1` remains absent" in current_state
     assert (
-        "PR16 feat/fact-current-as-of-queries` — NEXT; not started. PR16 may begin only "
-        "after this\n  production-state checkpoint is merged."
+        "PR16 feat/fact-current-as-of-queries` — IMPLEMENTED on the feature branch; NOT merged; "
+        "NOT\n  deployed."
+        in current_state
+    )
+    assert (
+        "`PR17 feat/semantic-mapping-schema` — NEXT AFTER PR16 completion; not started."
         in current_state
     )
 
@@ -383,8 +397,6 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
     for forbidden_claim in (
         "IMPLEMENTED ON FEATURE BRANCH",
         "IMPLEMENTED on this feature branch",
-        "NOT merged",
-        "NOT deployed",
         "Production has exactly six migrations",
         "implemented and not deployed",
         "review_decisions` is absent",
@@ -394,9 +406,63 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         "do not exist in production yet.",
         "awaits review, merge",
         "PR16 has begun",
-        "current_publishable",
         "publishable_as_of",
         "quality blocker workflow is implemented",
         "duplicate review events are harmless",
+        "PR16 feat/fact-current-as-of-queries` — MERGED",
+        "PR16 production deployment is COMPLETE",
+        "PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED",
+    ):
+        assert forbidden_claim not in current_state
+
+
+def test_pr16_feature_branch_queries_are_not_deployed() -> None:
+    current_state = (
+        REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
+    ).read_text(encoding="utf-8")
+
+    assert "The repository contains exactly eight migrations." in current_state
+    assert "Production has exactly seven migrations." in current_state
+    assert (
+        "Exactly one repository migration is pending relative\n  to production: "
+        "`20260922120000_fact_current_as_of_queries.sql`."
+        in current_state
+    )
+    assert (
+        "PR16\n  `feat/fact-current-as-of-queries` is IMPLEMENTED on the feature branch, NOT "
+        "merged, and NOT\n  deployed."
+        in current_state
+    )
+    assert "Production serving schema still has no PR16 relations or functions." in (
+        current_state
+    )
+    assert "PR16 fact-level current/as-of objects\n  remain absent." in current_state
+    for required_semantics in (
+        "Predecessor lineage authority is\n  "
+        "`reported.reported_facts.predecessor_reported_fact_id`",
+        "`fact_key_hash` is not lineage\n  authority",
+        "identity correction stays on the same predecessor lineage",
+        "terminal branches of the stored predecessor forest",
+        "every structural\n  ancestor were observed by the cutoff",
+        "unique accepted frontier",
+        "fail closed",
+        "accepted-common-ancestor fallback",
+        "At most one publishable frontier member",
+        "There is no ancestry depth cap",
+        "no quality integration yet",
+        "`audit.quality_issues` remains absent.",
+        "`public.regulatory_bank_metrics_v1` remains absent",
+        "`PR17 feat/semantic-mapping-schema` — NEXT AFTER PR16 completion; not started.",
+    ):
+        assert required_semantics in current_state
+
+    for forbidden_claim in (
+        "PR16 feat/fact-current-as-of-queries` — MERGED",
+        "PR16 production deployment is COMPLETE",
+        "PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED",
+        "Production contains `serving.current_observed_facts`",
+        "PR17 feat/semantic-mapping-schema` — IMPLEMENTED",
+        "PR16 is merged",
+        "PR16 is deployed",
     ):
         assert forbidden_claim not in current_state
