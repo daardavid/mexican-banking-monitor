@@ -16,8 +16,8 @@ not a changelog and does not make the roadmap executable.
   PR15 are merged, deployed, and independently verified. PR12 is merged and complete, and its
   production artifact Storage is provisioned and verified. PR15a `feat/review-decision-events` is
   MERGED / COMPLETE; production deployment is COMPLETE / VERIFIED. PR16
-  `feat/fact-current-as-of-queries` is IMPLEMENTED on the feature branch, NOT merged, and NOT
-  deployed.
+  `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
 
 ## Implemented now
 
@@ -74,21 +74,36 @@ not a changelog and does not make the roadmap executable.
   no fact-level current/publishable semantics. Production currently has zero review-decision
   rows, RLS enabled with zero policies, narrow `service_role` privileges, and no PR15a
   SECURITY DEFINER functions.
-- The feature-branch PR16 query layer adds private `serving.reported_fact_revision_ancestry`,
-  `serving.current_observed_facts`, `serving.current_publishable_facts`,
-  `serving.observed_facts_as_of(timestamptz)`, and
-  `serving.publishable_facts_as_of(timestamptz)`. Predecessor lineage authority is
-  `reported.reported_facts.predecessor_reported_fact_id`; `fact_key_hash` is not lineage
-  authority, and an identity correction stays on the same predecessor lineage. Observed heads are
-  the terminal branches of the stored predecessor forest, so one lineage may expose more than one
-  current observed row. As-of graphs include a fact only when that fact and every structural
-  ancestor were observed by the cutoff. Publishable rows are the unique accepted frontier: an
-  effective `ACCEPT` with no effectively accepted proper descendant in the relevant graph. Two or
-  more accepted frontier members fail closed and publish zero rows for that lineage, with no
-  timestamp, id, or accepted-common-ancestor fallback. At most one publishable frontier member is
-  returned per revision lineage. There is no ancestry depth cap and no quality integration yet.
-  `audit.quality_issues` remains absent. Measured-performance optimization of the recursive
-  ancestry view is future work. These objects are not merged and are not deployed.
+- The deployed PR16 fact current/as-of query layer implements exactly three ordinary
+  `security_invoker` views and two SQL `STABLE` invoker functions:
+  `serving.reported_fact_revision_ancestry`, `serving.current_observed_facts`,
+  `serving.current_publishable_facts`, `serving.observed_facts_as_of(timestamptz)`, and
+  `serving.publishable_facts_as_of(timestamptz)`. There is no PR16 table, materialized view,
+  sequence, index, trigger, policy, `serving.current` object, or SECURITY DEFINER function.
+  Predecessor lineage authority is `reported.reported_facts.predecessor_reported_fact_id`;
+  `fact_key_hash` is not lineage authority, and an identity correction stays on the same
+  predecessor lineage. There is no ancestry depth cap. Observed surfaces preserve the terminal
+  branches of the stored predecessor forest, so sibling observed branches remain visible and
+  review state does not affect observed membership. Current observed semantics are not
+  clock-based. The observed contract is exactly 29 columns. As-of graphs require cutoff-visible
+  ancestry: `first_observed_at <= cutoff` and every structural ancestor observed by that cutoff.
+  Head detection stays inside the cutoff-eligible graph, so a future child does not displace an
+  eligible parent and future ancestry cannot leak through the lineage root. A null cutoff
+  returns zero rows. Publishable state uses an effective `ACCEPT` from
+  `audit.effective_review_decisions`, or from `audit.effective_review_decisions_as_of(cutoff)`
+  for as-of queries. The accepted frontier is an accepted fact with no effectively accepted
+  proper descendant in the relevant graph. The publishable contract is exactly 32 columns.
+  Zero frontier members publish nothing, exactly one frontier member is published, and more
+  than one fails closed and publishes nothing for that lineage. Multiple sibling `ACCEPT`
+  decisions may coexist. PR16 does not invent a winner from `decided_at`,
+  `review_decision_id`, `reported_fact_id`, `first_observed_at`, or `fact_key_hash`, and there
+  is no accepted-common-ancestor fallback while competing accepted frontier branches remain.
+  At most one publishable frontier member is returned per revision lineage. `service_role` has
+  query-only access (`SELECT` on the three views and `EXECUTE` on both functions) and no
+  mutation authority. `anon`, `authenticated`, and `PUBLIC` have no access. There is no quality
+  integration yet. `audit.quality_issues` remains absent. Production has zero reported facts,
+  zero review decisions, zero current observed rows, zero current publishable rows, and zero
+  as-of query results.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -102,7 +117,7 @@ not a changelog and does not make the roadmap executable.
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
   migrations. The workflow has been used successfully for the verified PR10, PR11, PR13, PR14,
-  PR15, and PR15a deployments.
+  PR15, PR15a, and PR16 deployments.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -119,7 +134,8 @@ VERIFIED; PR12 MERGED / COMPLETE; PR12 PRODUCTION STORAGE PROVISIONED / VERIFIED
 MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
 COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE;
 PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A MERGED / COMPLETE;
-PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
+PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR16 MERGED / COMPLETE;
+PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -133,11 +149,9 @@ and Git/YAML editorial authority with Python as executable authority.
 - The repository contains exactly eight migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
-  identity/taxonomy schema, the deployed PR15 reported-fact schema, and the deployed PR15a
-  review-decision schema. The feature-branch PR16 migration adds the fact current/as-of query
-  surfaces.
-  Production has exactly seven migrations. Exactly one repository migration is pending relative
-  to production: `20260922120000_fact_current_as_of_queries.sql`. No v1 public
+  identity/taxonomy schema, the deployed PR15 reported-fact schema, the deployed PR15a
+  review-decision schema, and the deployed PR16 fact current/as-of query surfaces.
+  Production has exactly eight migrations. No pending production migration remains. No v1 public
   contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
@@ -156,6 +170,7 @@ and Git/YAML editorial authority with Python as executable authority.
   - `20260916202900 / institution_identity_schema`
   - `20260919143000 / reported_fact_schema`
   - `20260919180000 / review_decision_events`
+  - `20260922120000 / fact_current_as_of_queries`
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
@@ -209,10 +224,25 @@ and Git/YAML editorial authority with Python as executable authority.
   correction-target constraint. `service_role` has SELECT and narrow column-level INSERT only,
   with no UPDATE, DELETE, or INSERT on `review_decision_id`. No PR15a SECURITY DEFINER
   functions exist. All PR10–PR15a runtime tables remain empty. Legacy objects remain intact
-  and empty. `audit.quality_issues` remains absent. PR16 fact-level current/as-of objects
-  remain absent. Production serving schema still has no PR16 relations or functions.
-  `public.regulatory_bank_metrics_v1` remains absent, and later `semantic` /
-  `metrics` / `serving` implementation relations remain absent in production.
+  and empty. `audit.quality_issues` remains absent.
+- GitHub PR #26 merged PR16 at `77da4a2fe0f507fe061db03090637bd50b72d037`. Post-merge main CI
+  run `35871818779` succeeded. Read-only production preflight run `35872608536` succeeded
+  exactly once for this SHA and ran `mbm doctor --database`; real `mbm refresh` remained
+  disabled. PR16 production database deployment workflow run `35874772998` completed
+  successfully and was executed exactly once. It applied only
+  `20260922120000_fact_current_as_of_queries.sql`. Production migration history is aligned at
+  eight, pending migrations are none, and the final production dry-run was a no-op.
+  Independent read-only production verification is complete. Production contains the five PR16
+  objects `serving.reported_fact_revision_ancestry`, `serving.current_observed_facts`,
+  `serving.current_publishable_facts`, `serving.observed_facts_as_of(timestamptz)`, and
+  `serving.publishable_facts_as_of(timestamptz)`. Reported facts, review decisions, current
+  observed rows, current publishable rows, and as-of query results are zero. Prior PR10–PR15a
+  runtime tables remain empty. Legacy objects remain intact and empty. No real CNBV facts
+  exist. `semantic.canonical_concepts`, `semantic.concept_mappings`,
+  `semantic.canonical_observations_v1`, `metrics.metric_definitions`, and
+  `metrics.metric_observations` remain absent. The `semantic` and `metrics` schemas remain
+  empty responsibility shells. `public.regulatory_bank_metrics_v1` remains absent. PR17 has
+  not started.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -222,6 +252,8 @@ and Git/YAML editorial authority with Python as executable authority.
   in production.
 - PR15 reported-fact schema is merged, deployed, and independently verified in production.
 - PR15a review-decision schema is merged, deployed, and independently verified in production.
+- PR16 fact current and as-of queries are merged, deployed, and independently verified in
+  production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -256,14 +288,16 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR15a feat/review-decision-events` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR16 feat/fact-current-as-of-queries` — IMPLEMENTED on the feature branch; NOT merged; NOT
-  deployed.
-- `PR17 feat/semantic-mapping-schema` — NEXT AFTER PR16 completion; not started.
+- `PR16 feat/fact-current-as-of-queries` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
+- `PR17 feat/semantic-mapping-schema` — NEXT; NOT STARTED. It may begin only after this
+  checkpoint is merged and its post-merge main CI succeeds.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
   VERIFIED; PR15 MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR15a
-  MERGED / COMPLETE with production deployment COMPLETE / VERIFIED.
+  MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR16 MERGED / COMPLETE with
+  production deployment COMPLETE / VERIFIED.
 
 ## Known pending gates
 
@@ -275,11 +309,10 @@ and Git/YAML editorial authority with Python as executable authority.
   request/idempotency key with a `UNIQUE` contract. PR15a intentionally adds no such column and
   does not treat duplicate review events as harmless. `PR21 feat/cnbv-regulatory-slice` is the
   first roadmap PR expected to discharge this gate.
-- Sibling successor arbitration remains open by design. PR15a permits competing `ACCEPT` events
-  on two successors of the same predecessor and adds no per-predecessor acceptance uniqueness or
-  competing-acceptance trigger. PR16 owns fact-level current/publishable semantics and their
-  enforcement mechanism. On this feature branch that mechanism is the fail-closed accepted
-  frontier, and it is not deployed.
+- Sibling successor arbitration is enforced by the deployed PR16 fail-closed accepted frontier.
+  Competing effective `ACCEPT` frontier members publish zero rows for that lineage. PR16 does
+  not select a winner by timestamp or identifier and does not fall back to an accepted common
+  ancestor.
 - Quality issues, quality blocker workflow, review queues, and automatic acceptance workflow
   remain PR24 work. `audit.quality_issues` does not exist.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
