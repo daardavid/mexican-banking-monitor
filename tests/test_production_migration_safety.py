@@ -34,6 +34,7 @@ PR14_MIGRATION_NAME = "20260916202900_institution_identity_schema.sql"
 PR15_MIGRATION_NAME = "20260919143000_reported_fact_schema.sql"
 PR15A_MIGRATION_NAME = "20260919180000_review_decision_events.sql"
 PR16_MIGRATION_NAME = "20260922120000_fact_current_as_of_queries.sql"
+PR17_MIGRATION_NAME = "20260926093000_semantic_mapping_schema.sql"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -88,6 +89,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr15_content = migrations[5].path.read_bytes().replace(b"\r\n", b"\n")
     pr15a_content = migrations[6].path.read_bytes().replace(b"\r\n", b"\n")
     pr16_content = migrations[7].path.read_bytes().replace(b"\r\n", b"\n")
+    pr17_content = migrations[8].path.read_bytes().replace(b"\r\n", b"\n")
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -98,8 +100,9 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
         PR15_MIGRATION_NAME,
         PR15A_MIGRATION_NAME,
         PR16_MIGRATION_NAME,
+        PR17_MIGRATION_NAME,
     ]
-    assert len(migrations) == 8
+    assert len(migrations) == 9
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
@@ -109,8 +112,10 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     assert "create table reported.reported_facts" in pr15_content.decode("utf-8")
     assert "create table audit.review_decisions" in pr15a_content.decode("utf-8")
     assert "create view serving.current_observed_facts" in pr16_content.decode("utf-8")
+    assert "create table semantic.canonical_concepts" in pr17_content.decode("utf-8")
     assert PR15A_MIGRATION_NAME > PR15_MIGRATION_NAME
     assert PR16_MIGRATION_NAME > PR15A_MIGRATION_NAME
+    assert PR17_MIGRATION_NAME > PR16_MIGRATION_NAME
 
 
 def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations() -> None:
@@ -1200,6 +1205,109 @@ def test_pr16_migration_is_private_forward_only_query_semantics() -> None:
     assert "row_number()" in column_gates
     assert "typrelid" not in column_gates
     assert "prorettype" not in column_gates
+
+
+def test_pr17_migration_is_private_unseeded_semantic_mapping() -> None:
+    migration_text = (
+        REPOSITORY_ROOT / "supabase" / "migrations" / PR17_MIGRATION_NAME
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(migration_text.lower().split())
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    smoke_normalized = " ".join(smoke_text.lower().split())
+
+    assert normalized.count("create table ") == 5
+    for table_name in (
+        "semantic.canonical_concepts",
+        "semantic.canonical_concept_versions",
+        "semantic.canonical_concept_version_scopes",
+        "semantic.concept_mappings",
+        "semantic.concept_mapping_versions",
+    ):
+        assert f"create table {table_name}" in normalized
+    assert "semantic.canonical_observations_v1" not in normalized
+    assert "data_nature = 'stock' and period_kind = 'instant'" in normalized
+    assert "data_nature = 'flow_ytd' and period_kind = 'duration'" in normalized
+    assert "daterange(valid_from, valid_to, '[]')" in normalized
+    assert "exclude using" not in normalized
+    assert "create index " not in normalized
+    assert "create view " not in normalized
+    assert "create function " not in normalized
+    assert "create trigger " not in normalized
+    assert "create policy " not in normalized
+    assert "create sequence " not in normalized
+    assert "create extension " not in normalized
+    assert "insert into" not in normalized
+    assert "security definer" not in normalized
+    assert forbidden_operations(migration_text) == []
+    for protected_token in (
+        "core.",
+        "ops.",
+        "analytics.",
+        "drop ",
+        "truncate",
+        "delete from",
+        "grant insert",
+        "grant update",
+        "grant delete",
+        "grant truncate",
+        "grant references",
+        "grant trigger",
+    ):
+        assert protected_token not in normalized
+    assert normalized.count("enable row level security") == 5
+    assert "grant select" in normalized
+    assert (
+        "foreign key (regulatory_concept_id, reporting_scope_id) "
+        "references registry.regulatory_concept_scopes"
+    ) in normalized
+    assert (
+        "foreign key ( concept_mapping_id, canonical_concept_id, reporting_scope_id ) "
+        "references semantic.concept_mappings"
+    ) in normalized
+    assert (
+        "foreign key (canonical_concept_version_id, canonical_concept_id) "
+        "references semantic.canonical_concept_versions"
+    ) in normalized
+    assert (
+        "foreign key (canonical_concept_version_id, reporting_scope_id) "
+        "references semantic.canonical_concept_version_scopes"
+    ) in normalized
+
+    for smoke_token in (
+        "pr17_schema_passed",
+        "pr17_inventory_gate",
+        "pr17_columns_gate",
+        "pr17_constraint_gate",
+        "pr17_index_gate",
+        "pr17_access_gate",
+        "pr17_state_gate",
+        "pr17_boundary_gate",
+        "pr17_rollback_passed",
+        "stock duration pair was accepted",
+        "flow instant pair was accepted",
+        "duplicate concept code was accepted",
+        "canonical version 0 was accepted",
+        "retired overlay remained usable",
+        "lower active overlay won",
+        "overlapping active mapping versions were rejected",
+        "draft canonical head stayed usable",
+        "stale canonical pin stayed usable",
+        "retired canonical head stayed usable",
+        "retired mapping identity stayed usable",
+        "retargeted mapping identity was unusable",
+        "old mapping identity was deleted",
+        "regulatory validity mismatch was treated as contained",
+        "identity invariant column was updated",
+        "service_role inserted a semantic row",
+        "service_role updated a semantic row",
+        "service_role deleted a semantic row",
+        "selected a semantic table",
+        "canonical_observations_v1",
+    ):
+        assert smoke_token in smoke_normalized
+    assert "create view semantic.canonical_observations_v1" not in smoke_normalized
 
 
 @pytest.mark.parametrize(

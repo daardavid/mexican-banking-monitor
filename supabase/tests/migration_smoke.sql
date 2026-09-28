@@ -296,14 +296,38 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
       )
 ), scope_boundary_gate as (
     select
-        not exists (
-            select 1
-            from pg_catalog.pg_class relation
-            join pg_catalog.pg_namespace namespace
-              on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('semantic', 'metrics')
-              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        (
+            select
+                count(*) = 5
+                and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
+                    ('canonical_concepts', 'r'),
+                    ('canonical_concept_versions', 'r'),
+                    ('canonical_concept_version_scopes', 'r'),
+                    ('concept_mappings', 'r'),
+                    ('concept_mapping_versions', 'r')
+                ))
+            from pg_catalog.pg_class semantic_relation
+            join pg_catalog.pg_namespace semantic_namespace
+              on semantic_namespace.oid = semantic_relation.relnamespace
+            where semantic_namespace.nspname = 'semantic'
+              and semantic_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class metrics_relation
+            join pg_catalog.pg_namespace metrics_namespace
+              on metrics_namespace.oid = metrics_relation.relnamespace
+            where metrics_namespace.nspname = 'metrics'
+              and metrics_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc semantic_function
+            join pg_catalog.pg_namespace semantic_function_namespace
+              on semantic_function_namespace.oid = semantic_function.pronamespace
+            where semantic_function_namespace.nspname in ('semantic', 'metrics')
+        )
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and (
             select
                 count(*) = 3
@@ -735,14 +759,38 @@ with evidence_columns_gate as (
             'source_releases',
             'source_artifacts'
         ))
+        and (
+            select
+                count(*) = 5
+                and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
+                    ('canonical_concepts', 'r'),
+                    ('canonical_concept_versions', 'r'),
+                    ('canonical_concept_version_scopes', 'r'),
+                    ('concept_mappings', 'r'),
+                    ('concept_mapping_versions', 'r')
+                ))
+            from pg_catalog.pg_class semantic_relation
+            join pg_catalog.pg_namespace semantic_namespace
+              on semantic_namespace.oid = semantic_relation.relnamespace
+            where semantic_namespace.nspname = 'semantic'
+              and semantic_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
         and not exists (
             select 1
-            from pg_catalog.pg_class later_relation
-            join pg_catalog.pg_namespace later_namespace
-              on later_namespace.oid = later_relation.relnamespace
-            where later_namespace.nspname in ('semantic', 'metrics')
-              and later_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+            from pg_catalog.pg_class metrics_relation
+            join pg_catalog.pg_namespace metrics_namespace
+              on metrics_namespace.oid = metrics_relation.relnamespace
+            where metrics_namespace.nspname = 'metrics'
+              and metrics_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc semantic_function
+            join pg_catalog.pg_namespace semantic_function_namespace
+              on semantic_function_namespace.oid = semantic_function.pronamespace
+            where semantic_function_namespace.nspname in ('semantic', 'metrics')
+        )
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and (
             select
                 count(*) = 3
@@ -2746,7 +2794,12 @@ with pr14_extension_gate as (
 ), pr14_boundary_gate as (
     select
         pg_catalog.to_regclass('reported.reported_facts') is not null
-        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
+        and pg_catalog.to_regclass('semantic.concept_mappings') is not null
+        and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
         and pg_catalog.to_regclass('audit.quality_issues') is null
@@ -3786,7 +3839,12 @@ with pr15_columns_gate as (
         pg_catalog.to_regclass('audit.quality_issues') is null
         and pg_catalog.to_regclass('serving.current_observed_facts') is not null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
-        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
+        and pg_catalog.to_regclass('semantic.concept_mappings') is not null
+        and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
 )
@@ -4228,7 +4286,12 @@ with pr15a_columns_gate as (
         and pg_catalog.to_regclass('serving.reported_fact_revision_ancestry') is not null
         and pg_catalog.to_regclass('serving.current_observed_facts') is not null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
-        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
+        and pg_catalog.to_regclass('semantic.concept_mappings') is not null
+        and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
         and not exists (
@@ -7634,13 +7697,29 @@ with pr16_relation_gate as (
         ) as valid
 ), pr16_boundary_gate as (
     select
-        not exists (
+        (
+            select
+                count(*) = 5
+                and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
+                    ('canonical_concepts', 'r'),
+                    ('canonical_concept_versions', 'r'),
+                    ('canonical_concept_version_scopes', 'r'),
+                    ('concept_mappings', 'r'),
+                    ('concept_mapping_versions', 'r')
+                ))
+            from pg_catalog.pg_class semantic_relation
+            join pg_catalog.pg_namespace semantic_namespace
+              on semantic_namespace.oid = semantic_relation.relnamespace
+            where semantic_namespace.nspname = 'semantic'
+              and semantic_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and not exists (
             select 1
-            from pg_catalog.pg_class relation
-            join pg_catalog.pg_namespace namespace
-              on namespace.oid = relation.relnamespace
-            where namespace.nspname in ('semantic', 'metrics')
-              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+            from pg_catalog.pg_class metrics_relation
+            join pg_catalog.pg_namespace metrics_namespace
+              on metrics_namespace.oid = metrics_relation.relnamespace
+            where metrics_namespace.nspname = 'metrics'
+              and metrics_relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
         )
         and not exists (
             select 1
@@ -7650,8 +7729,11 @@ with pr16_relation_gate as (
             where namespace.nspname in ('semantic', 'metrics')
         )
         and pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('semantic.canonical_concepts') is null
-        and pg_catalog.to_regclass('semantic.concept_mappings') is null
+        and pg_catalog.to_regclass('semantic.canonical_concepts') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_versions') is not null
+        and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
+        and pg_catalog.to_regclass('semantic.concept_mappings') is not null
+        and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
         and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('metrics.metric_observations') is null
@@ -8764,6 +8846,2105 @@ $$;
 
 \echo 'PR16 fact query behavioral smoke passed.'
 
+reset role;
+
+with pr17_inventory_gate as (
+    select
+        count(*) = 5
+        and bool_and(relation.relkind = 'r')
+        and bool_and(relation.relname in (
+            'canonical_concepts',
+            'canonical_concept_versions',
+            'canonical_concept_version_scopes',
+            'concept_mappings',
+            'concept_mapping_versions'
+        ))
+        and not exists (
+            select 1
+            from pg_catalog.pg_class other_relation
+            join pg_catalog.pg_namespace other_namespace
+              on other_namespace.oid = other_relation.relnamespace
+            where other_namespace.nspname = 'semantic'
+              and other_relation.relkind in ('v', 'm', 'S', 'f')
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'semantic'
+        )
+        and not exists (
+            select 1 from pg_catalog.pg_policies where schemaname = 'semantic'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_trigger trigger
+            join pg_catalog.pg_class relation
+              on relation.oid = trigger.tgrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'semantic'
+              and not trigger.tgisinternal
+        )
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'semantic'
+      and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+), pr17_columns_gate as (
+    select
+        count(*) = 37
+        and (
+            select count(*) = 37
+            from information_schema.columns
+            where table_schema = 'semantic'
+              and table_name in (
+                  'canonical_concepts',
+                  'canonical_concept_versions',
+                  'canonical_concept_version_scopes',
+                  'concept_mappings',
+                  'concept_mapping_versions'
+              )
+        )
+        and (
+            select
+                actual.udt_name = 'daterange'
+                and actual.is_generated = 'ALWAYS'
+                and actual.is_nullable = 'NO'
+                and actual.ordinal_position = 9
+                and actual.generation_expression like '%daterange(valid_from, valid_to%'
+                and actual.generation_expression like '%[]%'
+            from information_schema.columns actual
+            where actual.table_schema = 'semantic'
+              and actual.table_name = 'concept_mapping_versions'
+              and actual.column_name = 'validity'
+        )
+        and (
+            select
+                count(*) = 3
+                and bool_and(column_default in (
+                    'gen_random_uuid()',
+                    'pg_catalog.gen_random_uuid()',
+                    'extensions.gen_random_uuid()'
+                ))
+            from information_schema.columns
+            where table_schema = 'semantic'
+              and (table_name, column_name) in (
+                  ('canonical_concepts', 'canonical_concept_id'),
+                  ('canonical_concept_versions', 'canonical_concept_version_id'),
+                  ('concept_mapping_versions', 'concept_mapping_version_id')
+              )
+        ) as valid
+    from (values
+        ('canonical_concepts', 'canonical_concept_id', 1, 'uuid', 'NO', 'NEVER'),
+        ('canonical_concepts', 'concept_code', 2, 'text', 'NO', 'NEVER'),
+        ('canonical_concepts', 'data_nature', 3, 'text', 'NO', 'NEVER'),
+        ('canonical_concepts', 'period_kind', 4, 'text', 'NO', 'NEVER'),
+        ('canonical_concepts', 'canonical_unit_code', 5, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'canonical_concept_version_id', 1, 'uuid', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'canonical_concept_id', 2, 'uuid', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'definition_version', 3, 'integer', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'label', 4, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'definition', 5, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'lifecycle', 6, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'definition_snapshot', 7, 'jsonb', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'definition_hash', 8, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_versions', 'git_sha', 9, 'text', 'NO', 'NEVER'),
+        ('canonical_concept_version_scopes', 'canonical_concept_version_id', 1, 'uuid', 'NO', 'NEVER'),
+        ('canonical_concept_version_scopes', 'reporting_scope_id', 2, 'uuid', 'NO', 'NEVER'),
+        ('concept_mappings', 'concept_mapping_id', 1, 'uuid', 'NO', 'NEVER'),
+        ('concept_mappings', 'regulatory_concept_id', 2, 'uuid', 'NO', 'NEVER'),
+        ('concept_mappings', 'reporting_scope_id', 3, 'uuid', 'NO', 'NEVER'),
+        ('concept_mappings', 'canonical_concept_id', 4, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'concept_mapping_version_id', 1, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'concept_mapping_id', 2, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'canonical_concept_id', 3, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'reporting_scope_id', 4, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'canonical_concept_version_id', 5, 'uuid', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'definition_version', 6, 'integer', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'valid_from', 7, 'date', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'valid_to', 8, 'date', 'YES', 'NEVER'),
+        ('concept_mapping_versions', 'validity', 9, 'daterange', 'NO', 'ALWAYS'),
+        ('concept_mapping_versions', 'transformation_key', 10, 'text', 'YES', 'NEVER'),
+        ('concept_mapping_versions', 'comparability', 11, 'text', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'lifecycle', 12, 'text', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'methodology_notes', 13, 'text', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'provenance', 14, 'text', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'definition_snapshot', 15, 'jsonb', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'definition_hash', 16, 'text', 'NO', 'NEVER'),
+        ('concept_mapping_versions', 'git_sha', 17, 'text', 'NO', 'NEVER')
+    ) as expected(
+        table_name, column_name, ordinal_position, data_type, is_nullable, is_generated
+    )
+    join information_schema.columns actual
+      on actual.table_schema = 'semantic'
+     and actual.table_name = expected.table_name
+     and actual.column_name = expected.column_name
+     and actual.ordinal_position = expected.ordinal_position
+     and actual.is_nullable = expected.is_nullable
+     and actual.is_generated = expected.is_generated
+     and (
+         (expected.data_type = 'daterange' and actual.udt_name = 'daterange')
+         or (
+             expected.data_type <> 'daterange'
+             and actual.data_type = expected.data_type
+         )
+     )
+), pr17_constraint_gate as (
+    select
+        count(*) = 39
+        and (
+            select count(*) = 39
+            from pg_catalog.pg_constraint actual_constraint
+            join pg_catalog.pg_class relation
+              on relation.oid = actual_constraint.conrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'semantic'
+              and relation.relname in (
+                  'canonical_concepts',
+                  'canonical_concept_versions',
+                  'canonical_concept_version_scopes',
+                  'concept_mappings',
+                  'concept_mapping_versions'
+              )
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_constraint exclusion_constraint
+            join pg_catalog.pg_class relation
+              on relation.oid = exclusion_constraint.conrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'semantic'
+              and exclusion_constraint.contype = 'x'
+        )
+        and (
+            select
+                pg_catalog.pg_get_constraintdef(period_constraint.oid) like '%stock%'
+                and pg_catalog.pg_get_constraintdef(period_constraint.oid) like '%instant%'
+                and pg_catalog.pg_get_constraintdef(period_constraint.oid) like '%flow_ytd%'
+                and pg_catalog.pg_get_constraintdef(period_constraint.oid) like '%duration%'
+            from pg_catalog.pg_constraint period_constraint
+            where period_constraint.conname = 'canonical_concepts_period_semantics'
+        ) as valid
+    from (values
+        ('canonical_concepts_pkey', 'p', 'PRIMARY KEY (canonical_concept_id)'),
+        ('canonical_concepts_concept_code_key', 'u', 'UNIQUE (concept_code)'),
+        ('canonical_concepts_unit_fkey', 'f',
+            'FOREIGN KEY (canonical_unit_code) REFERENCES registry.measurement_units(unit_code)'),
+        ('canonical_concepts_concept_code_identifier', 'c', null),
+        ('canonical_concepts_period_semantics', 'c', null),
+        ('canonical_concept_versions_pkey', 'p',
+            'PRIMARY KEY (canonical_concept_version_id)'),
+        ('canonical_concept_versions_concept_fkey', 'f',
+            'FOREIGN KEY (canonical_concept_id) REFERENCES semantic.canonical_concepts(canonical_concept_id)'),
+        ('canonical_concept_versions_concept_definition_key', 'u',
+            'UNIQUE (canonical_concept_id, definition_version)'),
+        ('canonical_concept_versions_identity_key', 'u',
+            'UNIQUE (canonical_concept_version_id, canonical_concept_id)'),
+        ('canonical_concept_versions_definition_version_positive', 'c', null),
+        ('canonical_concept_versions_label_not_blank', 'c', null),
+        ('canonical_concept_versions_definition_not_blank', 'c', null),
+        ('canonical_concept_versions_lifecycle_valid', 'c', null),
+        ('canonical_concept_versions_definition_snapshot_object', 'c', null),
+        ('canonical_concept_versions_definition_hash_sha256', 'c', null),
+        ('canonical_concept_versions_git_sha_full', 'c', null),
+        ('canonical_concept_version_scopes_pkey', 'p',
+            'PRIMARY KEY (canonical_concept_version_id, reporting_scope_id)'),
+        ('canonical_concept_version_scopes_version_fkey', 'f',
+            'FOREIGN KEY (canonical_concept_version_id) REFERENCES semantic.canonical_concept_versions(canonical_concept_version_id)'),
+        ('canonical_concept_version_scopes_scope_fkey', 'f',
+            'FOREIGN KEY (reporting_scope_id) REFERENCES registry.reporting_scopes(reporting_scope_id)'),
+        ('concept_mappings_pkey', 'p', 'PRIMARY KEY (concept_mapping_id)'),
+        ('concept_mappings_identity_key', 'u',
+            'UNIQUE (regulatory_concept_id, reporting_scope_id, canonical_concept_id)'),
+        ('concept_mappings_pin_key', 'u',
+            'UNIQUE (concept_mapping_id, canonical_concept_id, reporting_scope_id)'),
+        ('concept_mappings_regulatory_scope_fkey', 'f',
+            'FOREIGN KEY (regulatory_concept_id, reporting_scope_id) REFERENCES registry.regulatory_concept_scopes(regulatory_concept_id, reporting_scope_id)'),
+        ('concept_mappings_canonical_concept_fkey', 'f',
+            'FOREIGN KEY (canonical_concept_id) REFERENCES semantic.canonical_concepts(canonical_concept_id)'),
+        ('concept_mapping_versions_pkey', 'p',
+            'PRIMARY KEY (concept_mapping_version_id)'),
+        ('concept_mapping_versions_mapping_pin_fkey', 'f',
+            'FOREIGN KEY (concept_mapping_id, canonical_concept_id, reporting_scope_id) REFERENCES semantic.concept_mappings(concept_mapping_id, canonical_concept_id, reporting_scope_id)'),
+        ('concept_mapping_versions_canonical_version_pin_fkey', 'f',
+            'FOREIGN KEY (canonical_concept_version_id, canonical_concept_id) REFERENCES semantic.canonical_concept_versions(canonical_concept_version_id, canonical_concept_id)'),
+        ('concept_mapping_versions_version_scope_fkey', 'f',
+            'FOREIGN KEY (canonical_concept_version_id, reporting_scope_id) REFERENCES semantic.canonical_concept_version_scopes(canonical_concept_version_id, reporting_scope_id)'),
+        ('concept_mapping_versions_mapping_definition_key', 'u',
+            'UNIQUE (concept_mapping_id, definition_version)'),
+        ('concept_mapping_versions_definition_version_positive', 'c', null),
+        ('concept_mapping_versions_validity_ordered', 'c', null),
+        ('concept_mapping_versions_transformation_key_valid', 'c', null),
+        ('concept_mapping_versions_comparability_valid', 'c', null),
+        ('concept_mapping_versions_lifecycle_valid', 'c', null),
+        ('concept_mapping_versions_methodology_notes_not_blank', 'c', null),
+        ('concept_mapping_versions_provenance_not_blank', 'c', null),
+        ('concept_mapping_versions_definition_snapshot_object', 'c', null),
+        ('concept_mapping_versions_definition_hash_sha256', 'c', null),
+        ('concept_mapping_versions_git_sha_full', 'c', null)
+    ) as expected(constraint_name, constraint_kind, constraint_definition)
+    join pg_catalog.pg_constraint actual
+      on actual.conname = expected.constraint_name
+     and actual.contype = expected.constraint_kind::"char"
+     and (
+         expected.constraint_definition is null
+         or pg_catalog.pg_get_constraintdef(actual.oid) = expected.constraint_definition
+     )
+), pr17_index_gate as (
+    select
+        (
+            select count(*) = 0
+            from pg_catalog.pg_index index_definition
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'semantic'
+              and table_relation.relname in (
+                  'canonical_concepts',
+                  'canonical_concept_versions',
+                  'canonical_concept_version_scopes',
+                  'concept_mappings',
+                  'concept_mapping_versions'
+              )
+              and not exists (
+                  select 1
+                  from pg_catalog.pg_constraint backing_constraint
+                  where backing_constraint.conindid = index_definition.indexrelid
+              )
+        )
+        and (
+            select count(*) = 11
+            from pg_catalog.pg_index index_definition
+            join pg_catalog.pg_class table_relation
+              on table_relation.oid = index_definition.indrelid
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = table_relation.relnamespace
+            where namespace.nspname = 'semantic'
+              and table_relation.relname in (
+                  'canonical_concepts',
+                  'canonical_concept_versions',
+                  'canonical_concept_version_scopes',
+                  'concept_mappings',
+                  'concept_mapping_versions'
+              )
+              and exists (
+                  select 1
+                  from pg_catalog.pg_constraint backing_constraint
+                  where backing_constraint.conindid = index_definition.indexrelid
+              )
+        ) as valid
+), pr17_access_gate as (
+    select
+        count(*) = 5
+        and bool_and(relation.relrowsecurity)
+        and not exists (
+            select 1 from pg_catalog.pg_policies where schemaname = 'semantic'
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'semantic'
+              and function.prosecdef
+        )
+        and (
+            select bool_and(
+                pg_catalog.has_table_privilege(
+                    'service_role', format('semantic.%I', table_name), 'SELECT'
+                )
+                and not pg_catalog.has_table_privilege(
+                    'service_role',
+                    format('semantic.%I', table_name),
+                    'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+                )
+            )
+            from unnest(array[
+                'canonical_concepts',
+                'canonical_concept_versions',
+                'canonical_concept_version_scopes',
+                'concept_mappings',
+                'concept_mapping_versions'
+            ]) as table_name
+        )
+        and (
+            select bool_and(not pg_catalog.has_table_privilege(
+                role_name,
+                format('semantic.%I', table_name),
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+            ))
+            from unnest(array['anon', 'authenticated']) as role_name
+            cross join unnest(array[
+                'canonical_concepts',
+                'canonical_concept_versions',
+                'canonical_concept_version_scopes',
+                'concept_mappings',
+                'concept_mapping_versions'
+            ]) as table_name
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_class public_relation
+            join pg_catalog.pg_namespace public_namespace
+              on public_namespace.oid = public_relation.relnamespace
+            cross join lateral pg_catalog.aclexplode(
+                coalesce(
+                    public_relation.relacl,
+                    acldefault('r', public_relation.relowner)
+                )
+            ) as table_acl
+            where public_namespace.nspname = 'semantic'
+              and public_relation.relname in (
+                  'canonical_concepts',
+                  'canonical_concept_versions',
+                  'canonical_concept_version_scopes',
+                  'concept_mappings',
+                  'concept_mapping_versions'
+              )
+              and table_acl.grantee = 0
+        ) as valid
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'semantic'
+      and relation.relname in (
+          'canonical_concepts',
+          'canonical_concept_versions',
+          'canonical_concept_version_scopes',
+          'concept_mappings',
+          'concept_mapping_versions'
+      )
+), pr17_state_gate as (
+    select
+        not exists (select 1 from semantic.canonical_concepts)
+        and not exists (select 1 from semantic.canonical_concept_versions)
+        and not exists (select 1 from semantic.canonical_concept_version_scopes)
+        and not exists (select 1 from semantic.concept_mappings)
+        and not exists (select 1 from semantic.concept_mapping_versions) as valid
+), pr17_boundary_gate as (
+    select
+        (
+            select count(*) = 28
+            from information_schema.columns
+            where table_schema = 'reported'
+              and table_name = 'reported_facts'
+        )
+        and pg_catalog.to_regclass('serving.reported_fact_revision_ancestry') is not null
+        and pg_catalog.to_regclass('serving.current_observed_facts') is not null
+        and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
+        and pg_catalog.to_regprocedure(
+            'serving.observed_facts_as_of(timestamptz)'
+        ) is not null
+        and pg_catalog.to_regprocedure(
+            'serving.publishable_facts_as_of(timestamptz)'
+        ) is not null
+        and pg_catalog.to_regclass('audit.quality_issues') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
+        and not exists (
+            select 1
+            from pg_catalog.pg_class relation
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'metrics'
+              and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+        )
+        and not exists (
+            select 1
+            from pg_catalog.pg_proc function
+            join pg_catalog.pg_namespace namespace
+              on namespace.oid = function.pronamespace
+            where namespace.nspname = 'metrics'
+        )
+        and not exists (
+            select 1
+            from semantic.canonical_concepts
+            where concept_code in (
+                'gross_loans',
+                'traditional_deposits',
+                'net_income_ytd'
+            )
+        )
+        and not exists (
+            select 1 from evidence.sources where source_code = 'cnbv'
+        ) as valid
+)
+select
+    pr17_inventory_gate.valid as pr17_inventory_gate,
+    pr17_columns_gate.valid as pr17_columns_gate,
+    pr17_constraint_gate.valid as pr17_constraint_gate,
+    pr17_index_gate.valid as pr17_index_gate,
+    pr17_access_gate.valid as pr17_access_gate,
+    pr17_state_gate.valid as pr17_state_gate,
+    pr17_boundary_gate.valid as pr17_boundary_gate,
+    (
+        pr17_inventory_gate.valid
+        and pr17_columns_gate.valid
+        and pr17_constraint_gate.valid
+        and pr17_index_gate.valid
+        and pr17_access_gate.valid
+        and pr17_state_gate.valid
+        and pr17_boundary_gate.valid
+    ) as pr17_schema_passed
+from pr17_inventory_gate
+cross join pr17_columns_gate
+cross join pr17_constraint_gate
+cross join pr17_index_gate
+cross join pr17_access_gate
+cross join pr17_state_gate
+cross join pr17_boundary_gate
+\gset
+
+\echo PR17 gate inventory: :pr17_inventory_gate
+\echo PR17 gate columns: :pr17_columns_gate
+\echo PR17 gate constraints: :pr17_constraint_gate
+\echo PR17 gate indexes: :pr17_index_gate
+\echo PR17 gate access: :pr17_access_gate
+\echo PR17 gate state: :pr17_state_gate
+\echo PR17 gate boundary: :pr17_boundary_gate
+\echo PR17 aggregate schema: :pr17_schema_passed
+
+\if :pr17_schema_passed
+\echo 'PR17 semantic mapping schema contract passed.'
+\else
+\echo 'PR17 semantic mapping schema contract failed.'
+do $$
+begin
+    raise exception 'PR17 semantic mapping schema gate failed.';
+end
+$$;
+\endif
+
+
+do $$
+declare
+    rejected boolean;
+    decisive_version uuid;
+    decisive_lifecycle text;
+    decisive_mapping_version integer;
+    decisive_mapping_lifecycle text;
+    regulatory_predicate boolean;
+    identity_rows integer;
+    version_rows integer;
+    relation_name text;
+    role_name text;
+    definition_snapshot jsonb := '{"synthetic":"pr17"}'::jsonb;
+    sha256 text := repeat('a', 64);
+    git_sha_40 text := repeat('b', 40);
+    git_sha_64 text := repeat('e', 64);
+begin
+    reset role;
+
+    insert into registry.measurement_units (unit_code, dimension, multiplier)
+    values ('pr17_unit', 'currency', 1);
+
+    insert into registry.reporting_scopes (reporting_scope_id, scope_code)
+    values
+        ('00000000-0000-4000-8017-000000000011', 'pr17_scope_primary'),
+        ('00000000-0000-4000-8017-000000000012', 'pr17_scope_other');
+
+    insert into evidence.regulators (regulator_id, regulator_code, name, country)
+    values (
+        '00000000-0000-4000-8017-000000000021',
+        'pr17_regulator',
+        'PR17 synthetic regulator',
+        'MX'
+    );
+
+    insert into evidence.sources (source_id, regulator_id, source_code)
+    values (
+        '00000000-0000-4000-8017-000000000022',
+        '00000000-0000-4000-8017-000000000021',
+        'pr17_source'
+    );
+
+    insert into registry.regulatory_concepts (
+        regulatory_concept_id, source_id, external_code, definition_version,
+        label, definition, lifecycle, valid_from, valid_to,
+        definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000022',
+            'PR17-REG-A', 1, 'PR17 regulatory A', 'PR17 regulatory definition A',
+            'active', date '2020-01-01', date '2024-12-31',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000032',
+            '00000000-0000-4000-8017-000000000022',
+            'PR17-REG-B', 1, 'PR17 regulatory B', 'PR17 regulatory definition B',
+            'active', date '2020-01-01', null,
+            definition_snapshot, sha256, git_sha_40
+        );
+
+    insert into registry.regulatory_concept_scopes (
+        regulatory_concept_id, reporting_scope_id
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000032',
+            '00000000-0000-4000-8017-000000000012'
+        );
+
+    insert into semantic.canonical_concepts (
+        canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000101',
+            'pr17_stock_primary', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000102',
+            'pr17_flow_primary', 'flow_ytd', 'duration', 'pr17_unit'
+        );
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concepts (
+            canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            '00000000-0000-4000-8017-000000000191',
+            'pr17_stock_duration', 'stock', 'duration', 'pr17_unit'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'stock duration pair was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concepts (
+            canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            '00000000-0000-4000-8017-000000000192',
+            'pr17_flow_instant', 'flow_ytd', 'instant', 'pr17_unit'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'flow instant pair was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concepts (
+            canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            '00000000-0000-4000-8017-000000000193',
+            'pr17_stock_primary', 'stock', 'instant', 'pr17_unit'
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duplicate concept code was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concepts (
+            canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            '00000000-0000-4000-8017-000000000194',
+            'PR17_Bad', 'stock', 'instant', 'pr17_unit'
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid concept code was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concepts (
+            canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            '00000000-0000-4000-8017-000000000195',
+            'pr17_unknown_unit', 'stock', 'instant', 'missing_pr17_unit'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unknown unit was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000291',
+            '00000000-0000-4000-8017-000000000101',
+            0, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'canonical version 0 was accepted';
+    end if;
+
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_version_id, canonical_concept_id, definition_version,
+        label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000201',
+            '00000000-0000-4000-8017-000000000101',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000202',
+            '00000000-0000-4000-8017-000000000101',
+            2, 'PR17 draft label', 'PR17 draft definition', 'draft',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000203',
+            '00000000-0000-4000-8017-000000000101',
+            3, 'PR17 review label', 'PR17 review definition', 'review_required',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000204',
+            '00000000-0000-4000-8017-000000000101',
+            4, 'PR17 retired label', 'PR17 retired definition', 'retired',
+            definition_snapshot, sha256, git_sha_64
+        );
+
+    if (
+        select count(distinct lifecycle)
+        from semantic.canonical_concept_versions
+        where canonical_concept_id = '00000000-0000-4000-8017-000000000101'
+    ) <> 4 then
+        raise exception 'canonical lifecycles were not stored distinctly';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000292',
+            '00000000-0000-4000-8017-000000000101',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duplicate canonical version was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000293',
+            '00000000-0000-4000-8017-000000000101',
+            5, '   ', 'PR17 definition', 'draft',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank canonical label was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000294',
+            '00000000-0000-4000-8017-000000000101',
+            5, 'PR17 label', '   ', 'draft',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank canonical definition was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000295',
+            '00000000-0000-4000-8017-000000000101',
+            5, 'PR17 label', 'PR17 definition', 'draft',
+            '[]'::jsonb, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'non-object canonical snapshot was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000296',
+            '00000000-0000-4000-8017-000000000101',
+            5, 'PR17 label', 'PR17 definition', 'draft',
+            definition_snapshot, repeat('A', 64), git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'bad canonical hash was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_version_id, canonical_concept_id, definition_version,
+            label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000297',
+            '00000000-0000-4000-8017-000000000101',
+            5, 'PR17 label', 'PR17 definition', 'draft',
+            definition_snapshot, sha256, repeat('b', 39)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'bad canonical git sha was accepted';
+    end if;
+
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    ) values (
+        '00000000-0000-4000-8017-000000000201',
+        '00000000-0000-4000-8017-000000000011'
+    );
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_version_scopes (
+            canonical_concept_version_id, reporting_scope_id
+        ) values (
+            '00000000-0000-4000-8017-000000000201',
+            '00000000-0000-4000-8017-000000000099'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unknown canonical scope was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.canonical_concept_version_scopes (
+            canonical_concept_version_id, reporting_scope_id
+        ) values (
+            '00000000-0000-4000-8017-000000000201',
+            '00000000-0000-4000-8017-000000000011'
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duplicate canonical scope bridge was accepted';
+    end if;
+
+    insert into semantic.canonical_concepts (
+        canonical_concept_id, concept_code, data_nature, period_kind, canonical_unit_code
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000103',
+            'pr17_stock_fanout', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000104',
+            'pr17_stock_overlay', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000105',
+            'pr17_stock_decisive', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000106',
+            'pr17_stock_old_target', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000107',
+            'pr17_stock_new_target', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000108',
+            'pr17_stock_invariant', 'stock', 'instant', 'pr17_unit'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000109',
+            'pr17_stock_regulatory', 'stock', 'instant', 'pr17_unit'
+        );
+
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_version_id, canonical_concept_id, definition_version,
+        label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000226',
+            '00000000-0000-4000-8017-000000000103',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000205',
+            '00000000-0000-4000-8017-000000000104',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000211',
+            '00000000-0000-4000-8017-000000000105',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000221',
+            '00000000-0000-4000-8017-000000000106',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000222',
+            '00000000-0000-4000-8017-000000000107',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000223',
+            '00000000-0000-4000-8017-000000000108',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000224',
+            '00000000-0000-4000-8017-000000000108',
+            2, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000225',
+            '00000000-0000-4000-8017-000000000109',
+            1, 'PR17 label', 'PR17 definition', 'active',
+            definition_snapshot, sha256, git_sha_40
+        );
+
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000226',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000205',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000211',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000221',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000222',
+            '00000000-0000-4000-8017-000000000011'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000225',
+            '00000000-0000-4000-8017-000000000011'
+        );
+
+    insert into semantic.concept_mappings (
+        concept_mapping_id, regulatory_concept_id, reporting_scope_id, canonical_concept_id
+    ) values (
+        '00000000-0000-4000-8017-000000000301',
+        '00000000-0000-4000-8017-000000000031',
+        '00000000-0000-4000-8017-000000000011',
+        '00000000-0000-4000-8017-000000000101'
+    );
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mappings (
+            concept_mapping_id, regulatory_concept_id, reporting_scope_id, canonical_concept_id
+        ) values (
+            '00000000-0000-4000-8017-000000000391',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000012',
+            '00000000-0000-4000-8017-000000000101'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unsupported regulatory scope was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mappings (
+            concept_mapping_id, regulatory_concept_id, reporting_scope_id, canonical_concept_id
+        ) values (
+            '00000000-0000-4000-8017-000000000392',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000199'
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'unknown canonical target was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mappings (
+            concept_mapping_id, regulatory_concept_id, reporting_scope_id, canonical_concept_id
+        ) values (
+            '00000000-0000-4000-8017-000000000393',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000101'
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duplicate mapping identity was accepted';
+    end if;
+
+    insert into semantic.concept_mappings (
+        concept_mapping_id, regulatory_concept_id, reporting_scope_id, canonical_concept_id
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000302',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000103'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000104'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000305',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000105'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000306',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000106'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000307',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000107'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000308',
+            '00000000-0000-4000-8017-000000000031',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000109'
+        ),
+        (
+            '00000000-0000-4000-8017-000000000309',
+            '00000000-0000-4000-8017-000000000032',
+            '00000000-0000-4000-8017-000000000012',
+            '00000000-0000-4000-8017-000000000101'
+        );
+
+    if (
+        select count(*)
+        from semantic.concept_mappings
+        where concept_mapping_id in (
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000302'
+        )
+    ) <> 2 then
+        raise exception 'fan-out mapping was rejected';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000491',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            0, date '2021-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'mapping version 0 was accepted';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, valid_to, transformation_key, comparability, lifecycle,
+        methodology_notes, provenance, definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000441',
+        '00000000-0000-4000-8017-000000000301',
+        '00000000-0000-4000-8017-000000000101',
+        '00000000-0000-4000-8017-000000000011',
+        '00000000-0000-4000-8017-000000000201',
+        1, date '2021-01-01', date '2021-01-01', null, 'EXACT', 'active',
+        'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+        definition_snapshot, sha256, git_sha_40
+    );
+
+    if not exists (
+        select 1
+        from semantic.concept_mapping_versions
+        where concept_mapping_version_id = '00000000-0000-4000-8017-000000000441'
+          and validity @> date '2021-01-01'
+          and not (validity @> date '2021-01-02')
+    ) then
+        raise exception 'equal endpoint validity was rejected';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000492',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            1, date '2021-03-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when unique_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'duplicate mapping version was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, valid_to, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000493',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-02-01', date '2021-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'reversed mapping validity was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, transformation_key, comparability, lifecycle,
+            methodology_notes, provenance, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000494',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-03-01', 'PR17_Bad', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid transformation key was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, transformation_key, comparability, lifecycle,
+            methodology_notes, provenance, definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000495',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-03-01', repeat('a', 129), 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'oversized transformation key was accepted';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, valid_to, transformation_key, comparability, lifecycle,
+        methodology_notes, provenance, definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000442',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            2, date '2021-02-01', date '2021-02-28', 'pr17_symbol',
+            'HARMONIZED', 'draft',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_64
+        ),
+        (
+            '00000000-0000-4000-8017-000000000443',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            3, date '2021-03-01', date '2021-03-31', null,
+            'PROXY', 'review_required',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000444',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            4, date '2021-04-01', date '2021-04-30', null,
+            'NOT_COMPARABLE', 'retired',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+
+    if (
+        select count(distinct comparability)
+        from semantic.concept_mapping_versions
+        where concept_mapping_id = '00000000-0000-4000-8017-000000000301'
+    ) <> 4
+    or (
+        select count(distinct lifecycle)
+        from semantic.concept_mapping_versions
+        where concept_mapping_id = '00000000-0000-4000-8017-000000000301'
+    ) <> 4 then
+        raise exception 'comparability or lifecycle values were not stored distinctly';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000496',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'STRICT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid comparability was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000497',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'published',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'invalid mapping lifecycle was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000498',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'active',
+            '   ', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank methodology was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000499',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'draft',
+            'Synthetic PR17 methodology.', '   ',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'blank provenance was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000481',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'draft',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            '[]'::jsonb, sha256, git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'bad mapping snapshot was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000482',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'draft',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, repeat('A', 64), git_sha_40
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'bad mapping hash was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000483',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'draft',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, repeat('g', 40)
+        );
+    exception when check_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'bad mapping git sha was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000484',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000103',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000226',
+            1, date '2021-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong canonical identity pin was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000485',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000226',
+            1, date '2021-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong canonical version pin was accepted';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000486',
+            '00000000-0000-4000-8017-000000000309',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000012',
+            '00000000-0000-4000-8017-000000000201',
+            1, date '2021-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'canonical version lacked mapping scope';
+    end if;
+
+    rejected := false;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+            reporting_scope_id, canonical_concept_version_id, definition_version,
+            valid_from, comparability, lifecycle, methodology_notes, provenance,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            '00000000-0000-4000-8017-000000000487',
+            '00000000-0000-4000-8017-000000000301',
+            '00000000-0000-4000-8017-000000000101',
+            '00000000-0000-4000-8017-000000000012',
+            '00000000-0000-4000-8017-000000000201',
+            9, date '2021-05-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+    exception when foreign_key_violation then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'wrong mapping scope was accepted';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, valid_to, comparability, lifecycle, methodology_notes, provenance,
+        definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000401',
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000104',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000205',
+            1, date '2020-01-01', null, 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000402',
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000104',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000205',
+            2, date '2022-01-01', date '2023-12-31', 'EXACT', 'retired',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000403',
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000104',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000205',
+            3, date '2024-06-01', null, 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000404',
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000104',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000205',
+            4, date '2025-01-01', date '2025-12-31', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000405',
+            '00000000-0000-4000-8017-000000000304',
+            '00000000-0000-4000-8017-000000000104',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000205',
+            5, date '2025-06-01', date '2025-12-31', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+
+    if (
+        select count(*)
+        from semantic.concept_mapping_versions
+        where concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+          and lifecycle = 'active'
+          and validity @> date '2025-08-01'
+    ) < 2 then
+        raise exception 'overlapping active mapping versions were rejected';
+    end if;
+
+    if exists (
+        select 1
+        from pg_catalog.pg_constraint exclusion_constraint
+        join pg_catalog.pg_class relation
+          on relation.oid = exclusion_constraint.conrelid
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'semantic'
+          and exclusion_constraint.contype = 'x'
+    ) then
+        raise exception 'PR17 created an exclusion constraint';
+    end if;
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+      and version.validity @> date '2022-06-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 2
+       or decisive_mapping_lifecycle is distinct from 'retired' then
+        raise exception 'retired overlay remained usable';
+    end if;
+    if not exists (
+        select 1
+        from semantic.concept_mapping_versions
+        where concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+          and definition_version = 1
+          and lifecycle = 'active'
+          and validity @> date '2022-06-01'
+    ) then
+        raise exception 'older active overlay coverage disappeared';
+    end if;
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+      and version.validity @> date '2025-08-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 5
+       or decisive_mapping_lifecycle is distinct from 'active' then
+        raise exception 'lower active overlay won';
+    end if;
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+      and version.validity @> date '2025-03-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 4
+       or decisive_mapping_lifecycle is distinct from 'active' then
+        raise exception 'lower active overlay won';
+    end if;
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+      and version.validity @> date '2021-01-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 1
+       or decisive_mapping_lifecycle is distinct from 'active' then
+        raise exception 'lower active overlay won';
+    end if;
+
+    select version.definition_version
+    into decisive_mapping_version
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000304'
+      and version.validity @> date '2024-01-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 1 then
+        raise exception 'lower active overlay won';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, comparability, lifecycle, methodology_notes, provenance,
+        definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000411',
+        '00000000-0000-4000-8017-000000000305',
+        '00000000-0000-4000-8017-000000000105',
+        '00000000-0000-4000-8017-000000000011',
+        '00000000-0000-4000-8017-000000000211',
+        1, date '2020-01-01', 'EXACT', 'active',
+        'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+        definition_snapshot, sha256, git_sha_40
+    );
+
+    select version.canonical_concept_version_id, version.lifecycle
+    into decisive_version, decisive_lifecycle
+    from semantic.canonical_concept_versions version
+    where version.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+    order by version.definition_version desc
+    limit 1;
+    if not exists (
+        select 1
+        from semantic.concept_mapping_versions mapping_version
+        where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000411'
+          and mapping_version.canonical_concept_version_id = decisive_version
+          and decisive_lifecycle = 'active'
+    ) then
+        raise exception 'initial canonical pin was not usable';
+    end if;
+
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_version_id, canonical_concept_id, definition_version,
+        label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000212',
+        '00000000-0000-4000-8017-000000000105',
+        2, 'PR17 label', 'PR17 definition', 'draft',
+        definition_snapshot, sha256, git_sha_40
+    );
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    ) values (
+        '00000000-0000-4000-8017-000000000212',
+        '00000000-0000-4000-8017-000000000011'
+    );
+
+    select version.canonical_concept_version_id, version.lifecycle
+    into decisive_version, decisive_lifecycle
+    from semantic.canonical_concept_versions version
+    where version.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+    order by version.definition_version desc
+    limit 1;
+    if exists (
+        select 1
+        from semantic.concept_mapping_versions mapping_version
+        where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000411'
+          and mapping_version.canonical_concept_version_id = decisive_version
+          and decisive_lifecycle = 'active'
+    ) then
+        raise exception 'draft canonical head stayed usable';
+    end if;
+
+    execute $statement$update semantic.canonical_concept_versions
+        set lifecycle = 'active'
+        where canonical_concept_version_id = '00000000-0000-4000-8017-000000000212'$statement$;
+
+    select version.canonical_concept_version_id, version.lifecycle
+    into decisive_version, decisive_lifecycle
+    from semantic.canonical_concept_versions version
+    where version.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+    order by version.definition_version desc
+    limit 1;
+    if exists (
+        select 1
+        from semantic.concept_mapping_versions mapping_version
+        where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000411'
+          and mapping_version.canonical_concept_version_id = decisive_version
+          and decisive_lifecycle = 'active'
+    ) then
+        raise exception 'stale canonical pin stayed usable';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, comparability, lifecycle, methodology_notes, provenance,
+        definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000412',
+        '00000000-0000-4000-8017-000000000305',
+        '00000000-0000-4000-8017-000000000105',
+        '00000000-0000-4000-8017-000000000011',
+        '00000000-0000-4000-8017-000000000212',
+        2, date '2020-01-01', 'EXACT', 'active',
+        'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+        definition_snapshot, sha256, git_sha_40
+    );
+
+    select version.canonical_concept_version_id, version.lifecycle
+    into decisive_version, decisive_lifecycle
+    from semantic.canonical_concept_versions version
+    where version.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+    order by version.definition_version desc
+    limit 1;
+    if not exists (
+        select 1
+        from semantic.concept_mapping_versions mapping_version
+        where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000412'
+          and mapping_version.canonical_concept_version_id = decisive_version
+          and decisive_lifecycle = 'active'
+    ) then
+        raise exception 'repinned canonical version was not usable';
+    end if;
+
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_version_id, canonical_concept_id, definition_version,
+        label, definition, lifecycle, definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000213',
+        '00000000-0000-4000-8017-000000000105',
+        3, 'PR17 label', 'PR17 definition', 'retired',
+        definition_snapshot, sha256, git_sha_40
+    );
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    ) values (
+        '00000000-0000-4000-8017-000000000213',
+        '00000000-0000-4000-8017-000000000011'
+    );
+
+    select version.canonical_concept_version_id, version.lifecycle
+    into decisive_version, decisive_lifecycle
+    from semantic.canonical_concept_versions version
+    where version.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_lifecycle = 'active'
+       or exists (
+            select 1
+            from semantic.concept_mapping_versions mapping_version
+            join semantic.concept_mappings mapping
+              on mapping.concept_mapping_id = mapping_version.concept_mapping_id
+            where mapping.canonical_concept_id = '00000000-0000-4000-8017-000000000105'
+              and mapping_version.canonical_concept_version_id = decisive_version
+              and decisive_lifecycle = 'active'
+        ) then
+        raise exception 'retired canonical head stayed usable';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, comparability, lifecycle, methodology_notes, provenance,
+        definition_snapshot, definition_hash, git_sha
+    ) values
+        (
+            '00000000-0000-4000-8017-000000000421',
+            '00000000-0000-4000-8017-000000000306',
+            '00000000-0000-4000-8017-000000000106',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000221',
+            1, date '2020-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000422',
+            '00000000-0000-4000-8017-000000000306',
+            '00000000-0000-4000-8017-000000000106',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000221',
+            2, date '2023-01-01', 'EXACT', 'retired',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        ),
+        (
+            '00000000-0000-4000-8017-000000000423',
+            '00000000-0000-4000-8017-000000000307',
+            '00000000-0000-4000-8017-000000000107',
+            '00000000-0000-4000-8017-000000000011',
+            '00000000-0000-4000-8017-000000000222',
+            1, date '2020-01-01', 'EXACT', 'active',
+            'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+            definition_snapshot, sha256, git_sha_40
+        );
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000306'
+      and version.validity @> date '2024-06-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 2
+       or decisive_mapping_lifecycle is distinct from 'retired' then
+        raise exception 'retired mapping identity stayed usable';
+    end if;
+
+    select version.definition_version, version.lifecycle
+    into decisive_mapping_version, decisive_mapping_lifecycle
+    from semantic.concept_mapping_versions version
+    where version.concept_mapping_id = '00000000-0000-4000-8017-000000000307'
+      and version.validity @> date '2024-06-01'
+    order by version.definition_version desc
+    limit 1;
+    if decisive_mapping_version is distinct from 1
+       or decisive_mapping_lifecycle is distinct from 'active' then
+        raise exception 'retargeted mapping identity was unusable';
+    end if;
+    if (
+        select count(*)
+        from semantic.concept_mappings
+        where concept_mapping_id = '00000000-0000-4000-8017-000000000306'
+    ) <> 1 then
+        raise exception 'old mapping identity was deleted';
+    end if;
+
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_version_id, concept_mapping_id, canonical_concept_id,
+        reporting_scope_id, canonical_concept_version_id, definition_version,
+        valid_from, valid_to, comparability, lifecycle, methodology_notes, provenance,
+        definition_snapshot, definition_hash, git_sha
+    ) values (
+        '00000000-0000-4000-8017-000000000431',
+        '00000000-0000-4000-8017-000000000308',
+        '00000000-0000-4000-8017-000000000109',
+        '00000000-0000-4000-8017-000000000011',
+        '00000000-0000-4000-8017-000000000225',
+        1, date '2019-01-01', date '2026-12-31', 'EXACT', 'active',
+        'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
+        definition_snapshot, sha256, git_sha_40
+    );
+
+    select
+        mapping_version.validity @> date '2025-06-01'
+        and date '2025-06-01' >= regulatory_concept.valid_from
+        and (
+            regulatory_concept.valid_to is null
+            or date '2025-06-01' <= regulatory_concept.valid_to
+        )
+    into regulatory_predicate
+    from semantic.concept_mapping_versions mapping_version
+    join semantic.concept_mappings mapping
+      on mapping.concept_mapping_id = mapping_version.concept_mapping_id
+    join registry.regulatory_concepts regulatory_concept
+      on regulatory_concept.regulatory_concept_id = mapping.regulatory_concept_id
+    where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000431';
+    if regulatory_predicate is distinct from false then
+        raise exception 'regulatory validity mismatch was treated as contained';
+    end if;
+
+    select
+        mapping_version.validity @> date '2022-06-01'
+        and date '2022-06-01' >= regulatory_concept.valid_from
+        and (
+            regulatory_concept.valid_to is null
+            or date '2022-06-01' <= regulatory_concept.valid_to
+        )
+    into regulatory_predicate
+    from semantic.concept_mapping_versions mapping_version
+    join semantic.concept_mappings mapping
+      on mapping.concept_mapping_id = mapping_version.concept_mapping_id
+    join registry.regulatory_concepts regulatory_concept
+      on regulatory_concept.regulatory_concept_id = mapping.regulatory_concept_id
+    where mapping_version.concept_mapping_version_id = '00000000-0000-4000-8017-000000000431';
+    if regulatory_predicate is distinct from true then
+        raise exception 'regulatory validity predicate rejected an interior date';
+    end if;
+
+    if exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'semantic'
+          and table_name = 'canonical_concept_versions'
+          and column_name in ('data_nature', 'period_kind', 'canonical_unit_code')
+    ) or (
+        select count(*)
+        from information_schema.columns
+        where table_schema = 'semantic'
+          and table_name = 'canonical_concepts'
+          and column_name in ('data_nature', 'period_kind', 'canonical_unit_code')
+    ) <> 3 then
+        raise exception 'canonical identity invariants were stored on versions';
+    end if;
+
+    select count(*) into identity_rows
+    from semantic.canonical_concepts
+    where canonical_concept_id = '00000000-0000-4000-8017-000000000108';
+    select count(*) into version_rows
+    from semantic.canonical_concept_versions
+    where canonical_concept_id = '00000000-0000-4000-8017-000000000108';
+    if identity_rows <> 1 or version_rows <> 2 then
+        raise exception 'canonical versions did not share one identity row';
+    end if;
+
+    set local role service_role;
+    if not exists (
+        select 1
+        from semantic.canonical_concepts
+        where canonical_concept_id = '00000000-0000-4000-8017-000000000108'
+          and data_nature = 'stock'
+          and period_kind = 'instant'
+          and canonical_unit_code = 'pr17_unit'
+    ) then
+        raise exception 'service_role could not read canonical identity';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update semantic.canonical_concepts
+            set data_nature = 'flow_ytd'
+            where canonical_concept_id = '00000000-0000-4000-8017-000000000108'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'identity invariant column was updated';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update semantic.canonical_concepts
+            set period_kind = 'duration'
+            where canonical_concept_id = '00000000-0000-4000-8017-000000000108'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'identity invariant column was updated';
+    end if;
+
+    rejected := false;
+    begin
+        execute $statement$update semantic.canonical_concepts
+            set canonical_unit_code = 'pr17_unit'
+            where canonical_concept_id = '00000000-0000-4000-8017-000000000108'$statement$;
+    exception when insufficient_privilege then
+        rejected := true;
+    end;
+    if not rejected then
+        raise exception 'identity invariant column was updated';
+    end if;
+
+    foreach relation_name in array array[
+        'canonical_concepts',
+        'canonical_concept_versions',
+        'canonical_concept_version_scopes',
+        'concept_mappings',
+        'concept_mapping_versions'
+    ]
+    loop
+        execute format('select count(*) from semantic.%I', relation_name);
+
+        begin
+            execute format('insert into semantic.%I default values', relation_name);
+            raise exception 'service_role inserted a semantic row';
+        exception when insufficient_privilege then
+            null;
+        end;
+
+        begin
+            execute format(
+                'update semantic.%I set %I = %I where false',
+                relation_name,
+                case relation_name
+                    when 'canonical_concepts' then 'concept_code'
+                    when 'canonical_concept_versions' then 'label'
+                    when 'canonical_concept_version_scopes' then 'reporting_scope_id'
+                    when 'concept_mappings' then 'canonical_concept_id'
+                    else 'methodology_notes'
+                end,
+                case relation_name
+                    when 'canonical_concepts' then 'concept_code'
+                    when 'canonical_concept_versions' then 'label'
+                    when 'canonical_concept_version_scopes' then 'reporting_scope_id'
+                    when 'concept_mappings' then 'canonical_concept_id'
+                    else 'methodology_notes'
+                end
+            );
+            raise exception 'service_role updated a semantic row';
+        exception when insufficient_privilege then
+            null;
+        end;
+
+        begin
+            execute format('delete from semantic.%I where false', relation_name);
+            raise exception 'service_role deleted a semantic row';
+        exception when insufficient_privilege then
+            null;
+        end;
+    end loop;
+    reset role;
+
+    foreach role_name in array array['anon', 'authenticated']
+    loop
+        foreach relation_name in array array[
+            'canonical_concepts',
+            'canonical_concept_versions',
+            'canonical_concept_version_scopes',
+            'concept_mappings',
+            'concept_mapping_versions'
+        ]
+        loop
+            execute format('set local role %I', role_name);
+            begin
+                execute format('select count(*) from semantic.%I', relation_name);
+                raise exception '% selected a semantic table', role_name;
+            exception when insufficient_privilege then
+                null;
+            end;
+            reset role;
+        end loop;
+    end loop;
+end
+$$;
+
+\echo 'PR17 semantic mapping behavioral smoke passed.'
+
 rollback;
 
 select
@@ -8893,6 +11074,26 @@ select
 do $$
 begin
     raise exception 'PR16 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    not exists (select 1 from semantic.canonical_concepts)
+    and not exists (select 1 from semantic.canonical_concept_versions)
+    and not exists (select 1 from semantic.canonical_concept_version_scopes)
+    and not exists (select 1 from semantic.concept_mappings)
+    and not exists (select 1 from semantic.concept_mapping_versions)
+    as pr17_rollback_passed
+\gset
+
+\if :pr17_rollback_passed
+\echo 'PR17 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR17 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR17 rollback cleanliness gate failed.';
 end
 $$;
 \endif
