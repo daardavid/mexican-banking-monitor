@@ -10293,7 +10293,7 @@ begin
             '00000000-0000-4000-8017-000000000103',
             '00000000-0000-4000-8017-000000000011',
             '00000000-0000-4000-8017-000000000226',
-            1, date '2021-01-01', 'EXACT', 'active',
+            9, date '2021-01-01', 'EXACT', 'active',
             'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
             definition_snapshot, sha256, git_sha_40
         );
@@ -10317,7 +10317,7 @@ begin
             '00000000-0000-4000-8017-000000000101',
             '00000000-0000-4000-8017-000000000011',
             '00000000-0000-4000-8017-000000000226',
-            1, date '2021-01-01', 'EXACT', 'active',
+            9, date '2021-01-01', 'EXACT', 'active',
             'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
             definition_snapshot, sha256, git_sha_40
         );

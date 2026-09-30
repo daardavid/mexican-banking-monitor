@@ -1332,6 +1332,37 @@ def test_pr17_reversed_validity_smoke_accepts_range_constructor_rejection() -> N
         assert unrelated_rejection not in probe
 
 
+def test_pr17_mapping_pin_probes_avoid_persisted_definition_version() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    smoke_normalized = " ".join(smoke_text.lower().split())
+    persisted = smoke_normalized.find("00000000-0000-4000-8017-000000000441")
+    assert persisted != -1
+    assert "1, date '2021-01-01', date '2021-01-01'" in smoke_normalized[persisted:persisted + 400]
+    probes = (
+        (
+            "00000000-0000-4000-8017-000000000484",
+            "wrong canonical identity pin was accepted",
+        ),
+        (
+            "00000000-0000-4000-8017-000000000485",
+            "wrong canonical version pin was accepted",
+        ),
+    )
+    for version_id, failure_message in probes:
+        start = smoke_normalized.find(version_id)
+        end = smoke_normalized.find(failure_message, start)
+        assert start != -1
+        assert end > start
+        probe = smoke_normalized[start:end]
+        assert "9, date '2021-01-01'" in probe
+        assert "1, date '2021-01-01'" not in probe
+        assert "exception when foreign_key_violation then" in probe
+        assert "unique_violation" not in probe
+        assert "when others" not in probe
+
+
 @pytest.mark.parametrize(
     "filenames, expected_error",
     [
