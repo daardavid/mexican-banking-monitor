@@ -1310,6 +1310,28 @@ def test_pr17_migration_is_private_unseeded_semantic_mapping() -> None:
     assert "create view semantic.canonical_observations_v1" not in smoke_normalized
 
 
+def test_pr17_reversed_validity_smoke_accepts_range_constructor_rejection() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    smoke_normalized = " ".join(smoke_text.lower().split())
+    marker = "date '2021-02-01', date '2021-01-01'"
+    start = smoke_normalized.find(marker)
+    assert start != -1
+    end = smoke_normalized.find("reversed mapping validity was accepted", start)
+    assert end > start
+    probe = smoke_normalized[start:end]
+    assert "exception when check_violation or data_exception then" in probe
+    assert "when others" not in probe
+    for unrelated_rejection in (
+        "unique_violation",
+        "foreign_key_violation",
+        "not_null_violation",
+        "insufficient_privilege",
+    ):
+        assert unrelated_rejection not in probe
+
+
 @pytest.mark.parametrize(
     "filenames, expected_error",
     [

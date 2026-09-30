@@ -10004,7 +10004,7 @@ begin
             'Synthetic PR17 methodology.', 'Synthetic PR17 provenance.',
             definition_snapshot, sha256, git_sha_40
         );
-    exception when check_violation then
+    exception when check_violation or data_exception then
         rejected := true;
     end;
     if not rejected then
