@@ -28,3 +28,9 @@ define its dimension, optional currency, and exact multiplier.
 Regulator, country, and sector remain code fields; whole-bundle validation enforces the current
 `cnbv` / `MX` / `banca_multiple` product boundary. Adapter, metric implementation, and mapping
 transformation keys are reusable Python references, not editorial definition identities.
+
+Current YAML keeps the head of every published canonical concept identity and the head of every
+published mapping identity. A retired head stays explicit in current YAML. Absence from current
+YAML never means retirement. Older non-head versions may be omitted from current YAML once they
+have been published, because Git history and immutable database snapshots preserve them. The
+definitions publisher must fail closed when a published identity head is missing.

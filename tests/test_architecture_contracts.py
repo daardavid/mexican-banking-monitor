@@ -195,11 +195,11 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly eight migrations." in current_state
+    assert "The repository contains exactly nine migrations." in current_state
     assert "Production has exactly eight migrations." in current_state
     assert "Production has exactly seven migrations." not in current_state
-    assert "Exactly one repository migration is pending" not in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Exactly one repository migration is pending relative" in current_state
+    assert "No pending production migration remains." not in current_state
     assert "Production has exactly six migrations." not in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
@@ -318,13 +318,14 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
     assert "It applied only `20260919180000_review_decision_events.sql`." in current_state
     assert (
         "the deployed PR15a\n  review-decision schema, and the deployed PR16 fact "
-        "current/as-of query surfaces."
+        "current/as-of query surfaces,"
         in current_state
     )
     assert "Production has exactly eight migrations." in current_state
+    assert "The repository contains exactly nine migrations." in current_state
     assert "Production has exactly seven migrations." not in current_state
-    assert "Exactly one repository migration is pending" not in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Exactly one repository migration is pending relative" in current_state
+    assert "No pending production migration remains." not in current_state
     assert "history is aligned at seven, pending migrations are none" in current_state
     assert "the final production dry-run\n  was a no-op." in current_state
     assert "PR15a review-decision schema is merged, deployed, and independently verified" in (
@@ -351,7 +352,10 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "`PR17 feat/semantic-mapping-schema` — NEXT; NOT STARTED." in current_state
+    assert (
+        "`PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT"
+        in current_state
+    )
 
     for frozen_pr15a_contract in (
         "the decision vocabulary `ACCEPT`,",
@@ -413,9 +417,9 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
 
-    assert "The repository contains exactly eight migrations." in current_state
+    assert "The repository contains exactly nine migrations." in current_state
     assert "Production has exactly eight migrations." in current_state
-    assert "No pending production migration remains." in current_state
+    assert "No pending production migration remains." not in current_state
     assert "pending migrations are none" in current_state
     assert (
         "PR16\n  `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment "
@@ -479,20 +483,98 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
         "`metrics.metric_definitions`",
         "`metrics.metric_observations`",
         "`public.regulatory_bank_metrics_v1` remains absent",
-        "`PR17 feat/semantic-mapping-schema` — NEXT; NOT STARTED.",
+        "`PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT",
     ):
         assert required_semantics in current_state
 
     for stale_claim in (
-        "IMPLEMENTED on the feature branch",
-        "NOT merged",
-        "NOT deployed",
         "Production has exactly seven migrations.",
-        "Exactly one repository migration is pending",
+        "Production has exactly nine migrations.",
         "20260922120000_fact_current_as_of_queries.sql`. No v1",
         "PR16 fact-level current/as-of objects\n  remain absent.",
         "Production serving schema still has no PR16",
-        "PR17 feat/semantic-mapping-schema` — IMPLEMENTED",
-        "PR17 has begun",
+        "PR16 is NOT merged",
+        "PR16 is NOT deployed",
     ):
         assert stale_claim not in current_state
+
+
+def test_pr17_semantic_mapping_is_implemented_and_not_deployed() -> None:
+    current_state = (
+        REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
+    ).read_text(encoding="utf-8")
+    adr = (
+        ADR_ROOT / "0008-semantic-mapping-version-effectiveness.md"
+    ).read_text(encoding="utf-8")
+    authority = _contract(7)
+
+    assert "- Status: Accepted" in adr
+    assert "ADR 0007 remains unchanged" in current_state
+    assert "Git/YAML is editorial authority" in authority
+    assert "ADR 0008" not in authority
+    for heading in (
+        "## Context",
+        "## Decision",
+        "## Consequences",
+        "## Rejected alternatives",
+    ):
+        assert heading in adr
+    for frozen_decision in (
+        "highest",
+        "definition_version",
+        "canonical re-pin",
+        "Absence from current YAML is not retirement",
+        "PROXY",
+        "NOT_COMPARABLE",
+        "period_end",
+        "data_nature",
+        "PR21",
+    ):
+        assert frozen_decision in adr
+
+    assert "PR17 `feat/semantic-mapping-schema` is IMPLEMENTED on feature branch" in (
+        current_state
+    )
+    assert "NOT merged" in current_state
+    assert "NOT deployed" in current_state
+    assert "The repository contains exactly nine migrations." in current_state
+    assert "Production has exactly eight migrations." in current_state
+    assert "Exactly one repository migration is pending relative" in current_state
+    assert "`20260926093000_semantic_mapping_schema.sql`" in current_state
+    assert "ADR 0008 is Accepted" in current_state
+    for table_name in (
+        "`semantic.canonical_concepts`",
+        "`semantic.canonical_concept_versions`",
+        "`semantic.canonical_concept_version_scopes`",
+        "`semantic.concept_mappings`",
+        "`semantic.concept_mapping_versions`",
+    ):
+        assert table_name in current_state
+    for boundary in (
+        "`semantic.canonical_observations_v1` remains absent",
+        "Metrics implementation remains absent",
+        "`audit.quality_issues` remains absent",
+        "`public.regulatory_bank_metrics_v1` remains absent",
+        "zero seed rows",
+        "overlay contract",
+        "highest `definition_version` among covering versions",
+        "decisive canonical version",
+        "Retirement is explicit",
+        "Absence from YAML never means retirement",
+        "`PROXY` remains private",
+        "PR21 definitions-publishing gate",
+        "PR18 has not started",
+        "Production semantic schema remains empty",
+        "Production does not contain the five PR17 tables",
+    ):
+        assert boundary in current_state
+
+    for false_claim in (
+        "PR17 is deployed",
+        "PR17 is merged",
+        "PR18 implemented",
+        "PR18 IMPLEMENTED",
+        "Production has exactly nine migrations.",
+        "production contains the five PR17 tables",
+    ):
+        assert false_claim not in current_state

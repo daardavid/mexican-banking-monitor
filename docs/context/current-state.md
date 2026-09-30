@@ -17,7 +17,8 @@ not a changelog and does not make the roadmap executable.
   production artifact Storage is provisioned and verified. PR15a `feat/review-decision-events` is
   MERGED / COMPLETE; production deployment is COMPLETE / VERIFIED. PR16
   `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment is COMPLETE /
-  VERIFIED.
+  VERIFIED. PR17 `feat/semantic-mapping-schema` is IMPLEMENTED on feature branch, NOT merged,
+  and NOT deployed. PR18 has not started.
 
 ## Implemented now
 
@@ -104,6 +105,29 @@ not a changelog and does not make the roadmap executable.
   integration yet. `audit.quality_issues` remains absent. Production has zero reported facts,
   zero review decisions, zero current observed rows, zero current publishable rows, and zero
   as-of query results.
+- The PR17 semantic mapping schema is IMPLEMENTED on feature branch, NOT merged, and NOT
+  deployed. The repository migration defines exactly five empty private tables:
+  `semantic.canonical_concepts`, `semantic.canonical_concept_versions`,
+  `semantic.canonical_concept_version_scopes`, `semantic.concept_mappings`, and
+  `semantic.concept_mapping_versions`. The migration inserts zero seed rows. It creates no view,
+  function, trigger, policy, sequence, extension, or standalone index, and
+  `semantic.canonical_observations_v1` remains absent. Canonical identity invariants
+  `data_nature`, `period_kind`, and `canonical_unit_code` live only on
+  `semantic.canonical_concepts`: `stock` pairs with `instant`, and `flow_ytd` pairs with
+  `duration`. The overlay contract permits overlapping mapping versions, including overlapping
+  `active` versions, and chooses the highest `definition_version` among covering versions for
+  economic date `d`. A higher `draft`, `review_required`, or `retired` version suppresses an
+  older `active` version. The decisive canonical version is the highest stored
+  `definition_version`; a mapping pin is usable only when it references that version and its
+  lifecycle is `active`. Retirement is explicit: a higher version with `lifecycle = retired`.
+  Absence from YAML never means retirement, and current YAML keeps every published canonical
+  concept head and mapping head, including a retired head. `PROXY` remains private and must not
+  silently become strict or public product data. `NOT_COMPARABLE` is stored negative semantic
+  knowledge. Regulatory concept validity is not enforced as a subset of mapping validity. RLS is
+  enabled with zero policies. `service_role` is SELECT-only. `anon`, `authenticated`, and
+  `PUBLIC` have no access. PR18 has not started. The PR21 definitions-publishing gate is still
+  future work: a reviewed definitions publisher must exist before PR21 inserts any real
+  definition or fact.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -135,23 +159,28 @@ MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
 COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE;
 PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A MERGED / COMPLETE;
 PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR16 MERGED / COMPLETE;
-PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
+PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR17 IMPLEMENTED on feature branch / NOT
+MERGED / NOT DEPLOYED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
-and Git/YAML editorial authority with Python as executable authority.
+and Git/YAML editorial authority with Python as executable authority. ADR 0008 is Accepted on this
+feature branch and is not merged. ADR 0007 remains unchanged.
 
 ## Legacy status
 
 - Schemas `core`, `ops`, and `analytics` are legacy and frozen for the v1 transition.
 - `public.bank_metrics` is an existing legacy derived surface.
 - The legacy initial migration remains immutable.
-- The repository contains exactly eight migrations. They define the seven v1 responsibility
+- The repository contains exactly nine migrations. They define the seven v1 responsibility
   schemas, the three deployed PR10 registry primitives, the five deployed PR11 evidence catalog
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
   identity/taxonomy schema, the deployed PR15 reported-fact schema, the deployed PR15a
-  review-decision schema, and the deployed PR16 fact current/as-of query surfaces.
-  Production has exactly eight migrations. No pending production migration remains. No v1 public
+  review-decision schema, and the deployed PR16 fact current/as-of query surfaces,
+  plus the PR17 semantic mapping schema, which is not deployed.
+  Production has exactly eight migrations. Exactly one repository migration is pending relative
+  to production: `20260926093000_semantic_mapping_schema.sql`.
+  Production semantic schema remains empty because that migration is not deployed. No v1 public
   contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
@@ -171,6 +200,9 @@ and Git/YAML editorial authority with Python as executable authority.
   - `20260919143000 / reported_fact_schema`
   - `20260919180000 / review_decision_events`
   - `20260922120000 / fact_current_as_of_queries`
+- Repository migration history adds exactly one undeployed migration after that production
+  history: `20260926093000 / semantic_mapping_schema`. Production migration history remains the
+  eight migrations above. Production does not contain PR17 objects.
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
@@ -236,13 +268,15 @@ and Git/YAML editorial authority with Python as executable authority.
   objects `serving.reported_fact_revision_ancestry`, `serving.current_observed_facts`,
   `serving.current_publishable_facts`, `serving.observed_facts_as_of(timestamptz)`, and
   `serving.publishable_facts_as_of(timestamptz)`. Reported facts, review decisions, current
-  observed rows, current publishable rows, and as-of query results are zero. Prior PR10–PR15a
+  observed rows, current publishable rows, and zero
+  as-of query results. Prior PR10–PR15a
   runtime tables remain empty. Legacy objects remain intact and empty. No real CNBV facts
-  exist. `semantic.canonical_concepts`, `semantic.concept_mappings`,
-  `semantic.canonical_observations_v1`, `metrics.metric_definitions`, and
-  `metrics.metric_observations` remain absent. The `semantic` and `metrics` schemas remain
-  empty responsibility shells. `public.regulatory_bank_metrics_v1` remains absent. PR17 has
-  not started.
+  exist. Production does not contain the five PR17 tables. `semantic.canonical_observations_v1`,
+  `metrics.metric_definitions`, and `metrics.metric_observations` remain absent. Production
+  `semantic` remains an empty responsibility shell because the PR17 migration is not deployed.
+  Production `metrics` remains an empty responsibility shell.
+  Metrics implementation remains absent. `public.regulatory_bank_metrics_v1` remains absent. `audit.quality_issues` remains
+  absent. PR18 has not started.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -290,8 +324,8 @@ and Git/YAML editorial authority with Python as executable authority.
   VERIFIED.
 - `PR16 feat/fact-current-as-of-queries` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR17 feat/semantic-mapping-schema` — NEXT; NOT STARTED. It may begin only after this
-  checkpoint is merged and its post-merge main CI succeeds.
+- `PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT
+  deployed. PR18 has not started.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
@@ -315,6 +349,10 @@ and Git/YAML editorial authority with Python as executable authority.
   ancestor.
 - Quality issues, quality blocker workflow, review queues, and automatic acceptance workflow
   remain PR24 work. `audit.quality_issues` does not exist.
+- PR21 definitions-publishing gate: before PR21 performs any real definition or fact insertion,
+  a reviewed definitions publisher must exist. The default owner is the PR21 workstream. PR17
+  does not implement that publisher. Splitting the gate into its own PR requires an explicit
+  roadmap amendment first. The roadmap is not renumbered.
 - CNBV source discovery, exact source-contract confirmation, and parser implementation remain
   pending for later phases.
 - Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,

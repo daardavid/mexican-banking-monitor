@@ -487,3 +487,34 @@ def test_database_deployment_does_not_provision_storage() -> None:
 
     assert "supabase seed buckets" not in database_workflow
     assert "supabase storage" not in database_workflow
+
+
+def test_pr17_repository_configuration_records_mapping_schema() -> None:
+    adr = (
+        REPOSITORY_ROOT / "docs" / "adr" / "0008-semantic-mapping-version-effectiveness.md"
+    ).read_text(encoding="utf-8")
+    smoke_sql = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    migrations = sorted((REPOSITORY_ROOT / "supabase" / "migrations").glob("*.sql"))
+
+    assert "- Status: Accepted" in adr
+    assert len(migrations) == 9
+    assert migrations[-1].name == "20260926093000_semantic_mapping_schema.sql"
+    for required_token in (
+        "pr17_inventory_gate",
+        "pr17_columns_gate",
+        "pr17_constraint_gate",
+        "pr17_index_gate",
+        "pr17_access_gate",
+        "pr17_state_gate",
+        "pr17_boundary_gate",
+        "pr17_schema_passed",
+        "pr17_rollback_passed",
+        "canonical_concepts",
+        "canonical_concept_versions",
+        "canonical_concept_version_scopes",
+        "concept_mappings",
+        "concept_mapping_versions",
+    ):
+        assert required_token in smoke_sql
