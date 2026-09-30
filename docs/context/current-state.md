@@ -17,8 +17,9 @@ not a changelog and does not make the roadmap executable.
   production artifact Storage is provisioned and verified. PR15a `feat/review-decision-events` is
   MERGED / COMPLETE; production deployment is COMPLETE / VERIFIED. PR16
   `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment is COMPLETE /
-  VERIFIED. PR17 `feat/semantic-mapping-schema` is IMPLEMENTED on feature branch, NOT merged,
-  and NOT deployed. PR18 has not started.
+  VERIFIED. PR17 `feat/semantic-mapping-schema` is MERGED / COMPLETE; production deployment
+  is COMPLETE / VERIFIED. `PR18 feat/canonical-observation-view` is NEXT AFTER THIS CHECKPOINT
+  IS MERGED AND POST-MERGE MAIN CI SUCCEEDS. PR18 has not started.
 
 ## Implemented now
 
@@ -105,8 +106,8 @@ not a changelog and does not make the roadmap executable.
   integration yet. `audit.quality_issues` remains absent. Production has zero reported facts,
   zero review decisions, zero current observed rows, zero current publishable rows, and zero
   as-of query results.
-- The PR17 semantic mapping schema is IMPLEMENTED on feature branch, NOT merged, and NOT
-  deployed. The repository migration defines exactly five empty private tables:
+- The deployed PR17 semantic mapping schema is MERGED / COMPLETE; production deployment is
+  COMPLETE / VERIFIED. Production contains exactly five empty private tables:
   `semantic.canonical_concepts`, `semantic.canonical_concept_versions`,
   `semantic.canonical_concept_version_scopes`, `semantic.concept_mappings`, and
   `semantic.concept_mapping_versions`. The migration inserts zero seed rows. It creates no view,
@@ -125,7 +126,9 @@ not a changelog and does not make the roadmap executable.
   silently become strict or public product data. `NOT_COMPARABLE` is stored negative semantic
   knowledge. Regulatory concept validity is not enforced as a subset of mapping validity. RLS is
   enabled with zero policies. `service_role` is SELECT-only. `anon`, `authenticated`, and
-  `PUBLIC` have no access. PR18 has not started. The PR21 definitions-publishing gate is still
+  `PUBLIC` have no access. No canonical definitions are seeded and no mappings are seeded.
+  Semantic effectiveness rules remain those frozen in ADR 0008. PR18 has not started. The PR21
+  definitions-publishing gate is still
   future work: a reviewed definitions publisher must exist before PR21 inserts any real
   definition or fact.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
@@ -141,7 +144,7 @@ not a changelog and does not make the roadmap executable.
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
   migrations. The workflow has been used successfully for the verified PR10, PR11, PR13, PR14,
-  PR15, PR15a, and PR16 deployments.
+  PR15, PR15a, PR16, and PR17 deployments.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -159,13 +162,14 @@ MERGED / COMPLETE; PR13 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR14 MERGED /
 COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE;
 PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A MERGED / COMPLETE;
 PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR16 MERGED / COMPLETE;
-PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR17 IMPLEMENTED on feature branch / NOT
-MERGED / NOT DEPLOYED`
+PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR17 MERGED / COMPLETE;
+PR17 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR18 HAS NOT STARTED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
-and Git/YAML editorial authority with Python as executable authority. ADR 0008 is Accepted on this
-feature branch and is not merged. ADR 0007 remains unchanged.
+and Git/YAML editorial authority with Python as executable authority. ADR 0008 is Accepted
+and frozen on `main`. ADR 0007 remains unchanged. Semantic effectiveness rules remain those
+frozen in ADR 0008.
 
 ## Legacy status
 
@@ -177,10 +181,9 @@ feature branch and is not merged. ADR 0007 remains unchanged.
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
   identity/taxonomy schema, the deployed PR15 reported-fact schema, the deployed PR15a
   review-decision schema, and the deployed PR16 fact current/as-of query surfaces,
-  plus the PR17 semantic mapping schema, which is not deployed.
-  Production has exactly eight migrations. Exactly one repository migration is pending relative
-  to production: `20260926093000_semantic_mapping_schema.sql`.
-  Production semantic schema remains empty because that migration is not deployed. No v1 public
+  and the deployed PR17 semantic mapping schema.
+  Production has exactly nine migrations. No pending production migration remains.
+  Production contains the five empty PR17 semantic tables. No v1 public
   contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
@@ -200,9 +203,9 @@ feature branch and is not merged. ADR 0007 remains unchanged.
   - `20260919143000 / reported_fact_schema`
   - `20260919180000 / review_decision_events`
   - `20260922120000 / fact_current_as_of_queries`
-- Repository migration history adds exactly one undeployed migration after that production
-  history: `20260926093000 / semantic_mapping_schema`. Production migration history remains the
-  eight migrations above. Production does not contain PR17 objects.
+  - `20260926093000 / semantic_mapping_schema`
+- Repository and production migration histories are aligned. The repository contains exactly nine
+  migrations, and production has exactly nine migrations. No pending production migration remains.
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline, and the final production migration
   dry-run is a no-op.
@@ -271,12 +274,29 @@ feature branch and is not merged. ADR 0007 remains unchanged.
   observed rows, current publishable rows, and zero
   as-of query results. Prior PR10–PR15a
   runtime tables remain empty. Legacy objects remain intact and empty. No real CNBV facts
-  exist. Production does not contain the five PR17 tables. `semantic.canonical_observations_v1`,
+  exist. `semantic.canonical_observations_v1`,
   `metrics.metric_definitions`, and `metrics.metric_observations` remain absent. Production
-  `semantic` remains an empty responsibility shell because the PR17 migration is not deployed.
-  Production `metrics` remains an empty responsibility shell.
+  `metrics` remains an empty responsibility shell.
   Metrics implementation remains absent. `public.regulatory_bank_metrics_v1` remains absent. `audit.quality_issues` remains
   absent. PR18 has not started.
+- GitHub PR #28 merged PR17 at `e060a605b43132fd306b718ac05c5309140a23b1`. Post-merge main CI
+  run `36668137372` succeeded. PR17 production database deployment workflow run `36669660851`
+  completed successfully and was executed exactly once. It applied only
+  `20260926093000_semantic_mapping_schema.sql`. Production migration history is aligned at
+  nine, pending migrations are none, and the final production dry-run was a no-op.
+  Independent read-only production verification is complete and classified
+  `PR17_PRODUCTION_VERIFICATION_PASS`. Production contains the five PR17 tables
+  `semantic.canonical_concepts`, `semantic.canonical_concept_versions`,
+  `semantic.canonical_concept_version_scopes`, `semantic.concept_mappings`, and
+  `semantic.concept_mapping_versions`. All five tables exist and are empty.
+  RLS is enabled on all five with zero policies. `service_role` is SELECT-only, with no
+  INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, or TRIGGER. `anon`, `authenticated`, and
+  `PUBLIC` have no table access. No column-level grants exist. No canonical definitions are
+  seeded and no mappings are seeded. Overlapping mapping validity remains allowed, and
+  there is no exclusion constraint. `semantic.canonical_observations_v1` remains absent.
+  Prior PR10–PR16 runtime tables remain empty. Legacy objects remain intact and empty. No real
+  CNBV facts exist.
+  Semantic effectiveness rules remain those frozen in ADR 0008. PR18 has not started.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -288,6 +308,7 @@ feature branch and is not merged. ADR 0007 remains unchanged.
 - PR15a review-decision schema is merged, deployed, and independently verified in production.
 - PR16 fact current and as-of queries are merged, deployed, and independently verified in
   production.
+- PR17 semantic mapping schema is merged, deployed, and independently verified in production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -324,14 +345,17 @@ feature branch and is not merged. ADR 0007 remains unchanged.
   VERIFIED.
 - `PR16 feat/fact-current-as-of-queries` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT
-  deployed. PR18 has not started.
+- `PR17 feat/semantic-mapping-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
+- `PR18 feat/canonical-observation-view` — NEXT AFTER THIS CHECKPOINT IS MERGED AND
+  POST-MERGE MAIN CI SUCCEEDS. PR18 has not started.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
   VERIFIED; PR15 MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR15a
   MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR16 MERGED / COMPLETE with
-  production deployment COMPLETE / VERIFIED.
+  production deployment COMPLETE / VERIFIED; PR17 MERGED / COMPLETE with production deployment
+  COMPLETE / VERIFIED.
 
 ## Known pending gates
 
