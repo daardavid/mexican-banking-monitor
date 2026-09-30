@@ -150,7 +150,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "  - `20260916202900 / institution_identity_schema`\n"
         "  - `20260919143000 / reported_fact_schema`\n"
         "  - `20260919180000 / review_decision_events`\n"
-        "  - `20260922120000 / fact_current_as_of_queries`"
+        "  - `20260922120000 / fact_current_as_of_queries`\n"
+        "  - `20260926093000 / semantic_mapping_schema`"
         in current_state
     )
     assert (
@@ -196,10 +197,11 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert "The repository contains exactly nine migrations." in current_state
-    assert "Production has exactly eight migrations." in current_state
+    assert "Production has exactly nine migrations." in current_state
+    assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
-    assert "Exactly one repository migration is pending relative" in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Exactly one repository migration is pending relative" not in current_state
+    assert "No pending production migration remains." in current_state
     assert "Production has exactly six migrations." not in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
@@ -321,11 +323,12 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         "current/as-of query surfaces,"
         in current_state
     )
-    assert "Production has exactly eight migrations." in current_state
+    assert "Production has exactly nine migrations." in current_state
     assert "The repository contains exactly nine migrations." in current_state
+    assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
-    assert "Exactly one repository migration is pending relative" in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Exactly one repository migration is pending relative" not in current_state
+    assert "No pending production migration remains." in current_state
     assert "history is aligned at seven, pending migrations are none" in current_state
     assert "the final production dry-run\n  was a no-op." in current_state
     assert "PR15a review-decision schema is merged, deployed, and independently verified" in (
@@ -353,7 +356,8 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         in current_state
     )
     assert (
-        "`PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT"
+        "`PR17 feat/semantic-mapping-schema` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED."
         in current_state
     )
 
@@ -418,8 +422,9 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
     ).read_text(encoding="utf-8")
 
     assert "The repository contains exactly nine migrations." in current_state
-    assert "Production has exactly eight migrations." in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Production has exactly nine migrations." in current_state
+    assert "Production has exactly eight migrations." not in current_state
+    assert "No pending production migration remains." in current_state
     assert "pending migrations are none" in current_state
     assert (
         "PR16\n  `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment "
@@ -483,13 +488,14 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
         "`metrics.metric_definitions`",
         "`metrics.metric_observations`",
         "`public.regulatory_bank_metrics_v1` remains absent",
-        "`PR17 feat/semantic-mapping-schema` — IMPLEMENTED on feature branch; NOT merged; NOT",
+        "`PR17 feat/semantic-mapping-schema` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED.",
     ):
         assert required_semantics in current_state
 
     for stale_claim in (
         "Production has exactly seven migrations.",
-        "Production has exactly nine migrations.",
+        "Production has exactly eight migrations.",
         "20260922120000_fact_current_as_of_queries.sql`. No v1",
         "PR16 fact-level current/as-of objects\n  remain absent.",
         "Production serving schema still has no PR16",
@@ -499,7 +505,7 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
         assert stale_claim not in current_state
 
 
-def test_pr17_semantic_mapping_is_implemented_and_not_deployed() -> None:
+def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     current_state = (
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
@@ -532,16 +538,47 @@ def test_pr17_semantic_mapping_is_implemented_and_not_deployed() -> None:
     ):
         assert frozen_decision in adr
 
-    assert "PR17 `feat/semantic-mapping-schema` is IMPLEMENTED on feature branch" in (
-        current_state
+    assert (
+        "PR17 `feat/semantic-mapping-schema` is MERGED / COMPLETE; production deployment\n"
+        "  is COMPLETE / VERIFIED."
+        in current_state
     )
-    assert "NOT merged" in current_state
-    assert "NOT deployed" in current_state
+    assert "PR17 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED" in current_state
+    assert (
+        "`PR17 feat/semantic-mapping-schema` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED."
+        in current_state
+    )
+    assert (
+        "GitHub PR #28 merged PR17 at `e060a605b43132fd306b718ac05c5309140a23b1`."
+        in current_state
+    )
+    assert "Post-merge main CI\n  run `36668137372` succeeded." in current_state
+    assert "PR17 production database deployment workflow run `36669660851`" in current_state
+    assert (
+        "It applied only\n  `20260926093000_semantic_mapping_schema.sql`."
+        in current_state
+    )
+    assert "aligned at\n  nine, pending migrations are none" in current_state
+    assert "the final production dry-run was a no-op." in current_state
+    assert "Independent read-only production verification is complete" in current_state
+    assert "`PR17_PRODUCTION_VERIFICATION_PASS`" in current_state
     assert "The repository contains exactly nine migrations." in current_state
-    assert "Production has exactly eight migrations." in current_state
-    assert "Exactly one repository migration is pending relative" in current_state
+    assert "Production has exactly nine migrations." in current_state
+    assert "No pending production migration remains." in current_state
+    assert "`20260926093000 / semantic_mapping_schema`" in current_state
     assert "`20260926093000_semantic_mapping_schema.sql`" in current_state
     assert "ADR 0008 is Accepted" in current_state
+    assert "Semantic effectiveness rules remain those frozen in ADR 0008." in current_state
+    assert "All five tables exist and are empty." in current_state
+    assert "RLS is enabled on all five with zero policies." in current_state
+    assert "`service_role` is SELECT-only" in current_state
+    assert "No canonical definitions are seeded and no mappings are seeded." in current_state
+    assert (
+        "`PR18 feat/canonical-observation-view` — NEXT AFTER THIS CHECKPOINT IS MERGED AND\n"
+        "  POST-MERGE MAIN CI SUCCEEDS."
+        in current_state
+    )
     for table_name in (
         "`semantic.canonical_concepts`",
         "`semantic.canonical_concept_versions`",
@@ -564,17 +601,22 @@ def test_pr17_semantic_mapping_is_implemented_and_not_deployed() -> None:
         "`PROXY` remains private",
         "PR21 definitions-publishing gate",
         "PR18 has not started",
-        "Production semantic schema remains empty",
-        "Production does not contain the five PR17 tables",
+        "Production contains the five PR17 tables",
+        "there is no exclusion constraint",
     ):
         assert boundary in current_state
 
-    for false_claim in (
-        "PR17 is deployed",
-        "PR17 is merged",
+    for stale_claim in (
+        "IMPLEMENTED on feature branch",
+        "NOT merged",
+        "NOT deployed",
+        "Production has exactly eight migrations.",
+        "Exactly one repository migration is pending",
+        "Production semantic schema remains empty",
+        "Production does not contain the five PR17 tables",
+        "which is not deployed",
         "PR18 implemented",
         "PR18 IMPLEMENTED",
-        "Production has exactly nine migrations.",
-        "production contains the five PR17 tables",
+        "PR18 has begun",
     ):
-        assert false_claim not in current_state
+        assert stale_claim not in current_state
