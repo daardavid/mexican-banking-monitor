@@ -499,8 +499,9 @@ def test_pr17_repository_configuration_records_mapping_schema() -> None:
     migrations = sorted((REPOSITORY_ROOT / "supabase" / "migrations").glob("*.sql"))
 
     assert "- Status: Accepted" in adr
-    assert len(migrations) == 9
-    assert migrations[-1].name == "20260926093000_semantic_mapping_schema.sql"
+    assert len(migrations) == 10
+    assert migrations[-1].name == "20261002140000_canonical_observation_view.sql"
+    assert migrations[-2].name == "20260926093000_semantic_mapping_schema.sql"
     for required_token in (
         "pr17_inventory_gate",
         "pr17_columns_gate",
@@ -516,5 +517,31 @@ def test_pr17_repository_configuration_records_mapping_schema() -> None:
         "canonical_concept_version_scopes",
         "concept_mappings",
         "concept_mapping_versions",
+    ):
+        assert required_token in smoke_sql
+
+
+def test_pr18_repository_configuration_records_canonical_observation_view() -> None:
+    adr = (
+        REPOSITORY_ROOT / "docs" / "adr" / "0009-canonical-observation-v1-contract.md"
+    ).read_text(encoding="utf-8")
+    smoke_sql = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    migrations = sorted((REPOSITORY_ROOT / "supabase" / "migrations").glob("*.sql"))
+
+    assert "- Status: Accepted" in adr
+    assert len(migrations) == 10
+    assert migrations[-1].name == "20261002140000_canonical_observation_view.sql"
+    for required_token in (
+        "PR18 B1",
+        "PR18 ML2",
+        "PR18 DO8",
+        "PR18 CH8",
+        "PR18 SC4",
+        "PR18 RR10",
+        "PR18 FO3",
+        "pr18_rollback_passed",
+        "canonical_observations_v1",
     ):
         assert required_token in smoke_sql

@@ -196,12 +196,13 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "COMPLETE /\n  VERIFIED."
         in current_state
     )
-    assert "The repository contains exactly nine migrations." in current_state
+    assert "The repository contains exactly ten migrations." in current_state
     assert "Production has exactly nine migrations." in current_state
     assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
     assert "Exactly one repository migration is pending relative" not in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Pending production migrations: exactly 1." in current_state
+    assert "No pending production migration remains." not in current_state
     assert "Production has exactly six migrations." not in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
@@ -324,11 +325,12 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         in current_state
     )
     assert "Production has exactly nine migrations." in current_state
-    assert "The repository contains exactly nine migrations." in current_state
+    assert "The repository contains exactly ten migrations." in current_state
     assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
     assert "Exactly one repository migration is pending relative" not in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Pending production migrations: exactly 1." in current_state
+    assert "No pending production migration remains." not in current_state
     assert "history is aligned at seven, pending migrations are none" in current_state
     assert "the final production dry-run\n  was a no-op." in current_state
     assert "PR15a review-decision schema is merged, deployed, and independently verified" in (
@@ -421,10 +423,11 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
 
-    assert "The repository contains exactly nine migrations." in current_state
+    assert "The repository contains exactly ten migrations." in current_state
     assert "Production has exactly nine migrations." in current_state
     assert "Production has exactly eight migrations." not in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Pending production migrations: exactly 1." in current_state
+    assert "No pending production migration remains." not in current_state
     assert "pending migrations are none" in current_state
     assert (
         "PR16\n  `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment "
@@ -563,9 +566,11 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     assert "the final production dry-run was a no-op." in current_state
     assert "Independent read-only production verification is complete" in current_state
     assert "`PR17_PRODUCTION_VERIFICATION_PASS`" in current_state
-    assert "The repository contains exactly nine migrations." in current_state
+    assert "The repository contains exactly ten migrations." in current_state
     assert "Production has exactly nine migrations." in current_state
-    assert "No pending production migration remains." in current_state
+    assert "Pending production migrations: exactly 1." in current_state
+    assert "`20261002140000_canonical_observation_view.sql`" in current_state
+    assert "No pending production migration remains." not in current_state
     assert "`20260926093000 / semantic_mapping_schema`" in current_state
     assert "`20260926093000_semantic_mapping_schema.sql`" in current_state
     assert "ADR 0008 is Accepted" in current_state
@@ -575,8 +580,7 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     assert "`service_role` is SELECT-only" in current_state
     assert "No canonical definitions are seeded and no mappings are seeded." in current_state
     assert (
-        "`PR18 feat/canonical-observation-view` — NEXT AFTER THIS CHECKPOINT IS MERGED AND\n"
-        "  POST-MERGE MAIN CI SUCCEEDS."
+        "`PR18 feat/canonical-observation-view` — IMPLEMENTED LOCALLY / FEATURE BRANCH."
         in current_state
     )
     for table_name in (
@@ -600,7 +604,6 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
         "Absence from YAML never means retirement",
         "`PROXY` remains private",
         "PR21 definitions-publishing gate",
-        "PR18 has not started",
         "Production contains the five PR17 tables",
         "there is no exclusion constraint",
     ):
@@ -616,7 +619,104 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
         "Production does not contain the five PR17 tables",
         "which is not deployed",
         "PR18 implemented",
-        "PR18 IMPLEMENTED",
         "PR18 has begun",
+        "PR18 has not started",
+        "PR18 MERGED",
+        "PR18 DEPLOYED",
+        "PR18 CLOSED",
+        "NEXT AFTER THIS CHECKPOINT IS MERGED",
     ):
         assert stale_claim not in current_state
+
+
+def test_adr_0009_freezes_the_canonical_observation_contract() -> None:
+    adr = (ADR_ROOT / "0009-canonical-observation-v1-contract.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "- Status: Accepted" in adr
+    for heading in (
+        "## Context",
+        "## Decision",
+        "## Invariants",
+        "## Consequences",
+        "## Rejected alternatives",
+    ):
+        assert heading in adr
+    for statement in (
+        "The sole fact input is `serving.current_publishable_facts`.",
+        "The only PR18 database object is the ordinary view "
+        "`semantic.canonical_observations_v1`.",
+        "Only `dimensions = '{}'::jsonb` is eligible.",
+        "`economic_date` is `period_end` for v1.",
+        "The exposed `institution_id` is that registration's institution.",
+        "PR18 has no regulatory-head rule.",
+        "There is no fallback to an older version.",
+        "it does not depend on `economic_date`.",
+        "`canonical_value` equals `parsed_value` with no cast.",
+        "Economic-key collisions remain visible.",
+        "The view is `security_invoker`.",
+        "Filtering mapping versions to `active` before the highest covering "
+        "version is chosen.",
+    ):
+        assert statement in adr
+
+
+def test_pr18_is_recorded_as_implemented_locally_on_the_feature_branch() -> None:
+    current_state = (
+        REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
+    ).read_text(encoding="utf-8")
+
+    assert "ADR 0009 is Accepted" in current_state
+    assert "IMPLEMENTED LOCALLY / FEATURE BRANCH" in current_state
+    assert "d3e6c01544701d49a6fea0a827172a6e9d7e0be0" in current_state
+    assert "The repository contains exactly ten migrations." in current_state
+    assert "Production has exactly nine migrations." in current_state
+    assert "Pending production migrations: exactly 1." in current_state
+    assert "`20261002140000_canonical_observation_view.sql`" in current_state
+    assert "is not merged, not deployed, and not\n  production verified." in current_state
+    assert "Production has no\n  `semantic.canonical_observations_v1` view." in current_state
+    assert "In production, `semantic.canonical_observations_v1` remains absent." in current_state
+    assert "PR19 has not started." in current_state
+    assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." in current_state
+    for contract_statement in (
+        "`security_invoker` view, `semantic.canonical_observations_v1`, with exactly 21 columns.",
+        "The sole fact input is `serving.current_publishable_facts`.",
+        "`institution_id` comes from\n  the exact regulatory registration",
+        "that registration must cover `economic_date`.",
+        "The exact regulatory concept must be active and valid at `economic_date`.",
+        "dimensionless-only: `dimensions = '{}'`.",
+        "`economic_date` equals `period_end` as the v1\n  projection convention.",
+        "Mapping effectiveness follows ADR 0008.",
+        "The highest covering\n  mapping `definition_version` is decisive before lifecycle.",
+        (
+            "The canonical head is the\n  highest stored `definition_version`, "
+            "independent of lifecycle and date."
+        ),
+        "A stale canonical\n  pin fails closed until it is explicitly re-pinned.",
+        "Allowed private comparability is\n  `EXACT`, `HARMONIZED`, and `PROXY`.",
+        "`NOT_COMPARABLE` is suppressed.",
+        "A non-null\n  `transformation_key` is suppressed.",
+        "There is no unit conversion.",
+        "Period kind must match\n  exactly.",
+        "`canonical_value` is an exact unconstrained `numeric` pass-through.",
+        "Legitimate\n  mapping fan-out is preserved.",
+        (
+            "There is no economic-key arbitration, no point-in-time or\n  "
+            "as-of semantic contract, no public contract, and no seeds."
+        ),
+        (
+            "PR18 does not implement source discovery, a\n  CNBV parser, definitions "
+            "publishing, a transformation registry, dimensional mapping, a\n  "
+            "metric engine, a quality issue or blocker layer, point-in-time "
+            "semantic reconstruction,\n  or a public serving contract."
+        ),
+        (
+            "confirmation of the `period_end` convention, registration-period "
+            "behavior, actual\n  dimensional behavior, and source unit behavior."
+        ),
+        "PR22 and PR23 metric layers must fail\n  closed on unresolved economic-key collisions.",
+        "PR24 owns the later quality workflow.",
+        "PR25 owns point-in-time semantics.",
+    ):
+        assert contract_statement in current_state
