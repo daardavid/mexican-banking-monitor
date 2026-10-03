@@ -579,10 +579,7 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     assert "RLS is enabled on all five with zero policies." in current_state
     assert "`service_role` is SELECT-only" in current_state
     assert "No canonical definitions are seeded and no mappings are seeded." in current_state
-    assert (
-        "`PR18 feat/canonical-observation-view` — IMPLEMENTED LOCALLY / FEATURE BRANCH."
-        in current_state
-    )
+    assert "PR18 implementation is present in this repository snapshot" in current_state
     for table_name in (
         "`semantic.canonical_concepts`",
         "`semantic.canonical_concept_versions`",
@@ -662,23 +659,34 @@ def test_adr_0009_freezes_the_canonical_observation_contract() -> None:
         assert statement in adr
 
 
-def test_pr18_is_recorded_as_implemented_locally_on_the_feature_branch() -> None:
+def test_pr18_repository_state_is_present_and_not_deployed() -> None:
     current_state = (
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
 
     assert "ADR 0009 is Accepted" in current_state
-    assert "IMPLEMENTED LOCALLY / FEATURE BRANCH" in current_state
-    assert "d3e6c01544701d49a6fea0a827172a6e9d7e0be0" in current_state
+    assert "PR18 implementation is present in this repository snapshot" in current_state
     assert "The repository contains exactly ten migrations." in current_state
+    assert "Repository migrations: 10." in current_state
     assert "Production has exactly nine migrations." in current_state
+    assert "Production\n  migrations: 9." in current_state
     assert "Pending production migrations: exactly 1." in current_state
     assert "`20261002140000_canonical_observation_view.sql`" in current_state
-    assert "is not merged, not deployed, and not\n  production verified." in current_state
+    assert "Production deployment: NOT\n  PERFORMED." in current_state
+    assert "Production verification: NOT PERFORMED." in current_state
+    assert "production deployment has not been performed or verified." in current_state
     assert "Production has no\n  `semantic.canonical_observations_v1` view." in current_state
     assert "In production, `semantic.canonical_observations_v1` remains absent." in current_state
     assert "PR19 has not started." in current_state
     assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." in current_state
+    for transient_claim in (
+        "IMPLEMENTED LOCALLY / FEATURE BRANCH",
+        "is not merged",
+        "d3e6c01544701d49a6fea0a827172a6e9d7e0be0",
+        "On branch `feat/canonical-observation-view`",
+        "PR18 MERGED",
+    ):
+        assert transient_claim not in current_state
     for contract_statement in (
         "`security_invoker` view, `semantic.canonical_observations_v1`, with exactly 21 columns.",
         "The sole fact input is `serving.current_publishable_facts`.",
