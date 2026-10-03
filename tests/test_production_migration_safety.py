@@ -36,7 +36,7 @@ PR15A_MIGRATION_NAME = "20260919180000_review_decision_events.sql"
 PR16_MIGRATION_NAME = "20260922120000_fact_current_as_of_queries.sql"
 PR17_MIGRATION_NAME = "20260926093000_semantic_mapping_schema.sql"
 PR18_MIGRATION_NAME = "20261002140000_canonical_observation_view.sql"
-PR18_MIGRATION_SHA256 = "d4a20192d0905fdb4a8250ed700b92329a81d0043d65e454a3ff06b844b48189"
+PR18_MIGRATION_SHA256 = "fbcaecdcf941461d6d5834199dddfb7831403dcc0ea664ae640a3c7ecd004fed"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -47,6 +47,10 @@ parse_history_json = MIGRATION_SAFETY.parse_history_json
 validate_dry_run = MIGRATION_SAFETY.validate_dry_run
 validate_history = MIGRATION_SAFETY.validate_history
 legacy_sha256 = MIGRATION_SAFETY._legacy_sha256
+
+
+def canonical_lf(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
 
 
 def migration(tmp_path: Path, version: str, name: str = "change") -> Migration:
@@ -92,7 +96,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr15a_content = migrations[6].path.read_bytes().replace(b"\r\n", b"\n")
     pr16_content = migrations[7].path.read_bytes().replace(b"\r\n", b"\n")
     pr17_content = migrations[8].path.read_bytes().replace(b"\r\n", b"\n")
-    pr18_content = migrations[9].path.read_bytes()
+    pr18_content = canonical_lf(migrations[9].path.read_bytes())
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -1371,9 +1375,11 @@ def test_pr17_mapping_pin_probes_avoid_persisted_definition_version() -> None:
 
 
 def test_pr18_migration_is_private_canonical_observation_view() -> None:
-    migration_bytes = (
-        REPOSITORY_ROOT / "supabase" / "migrations" / PR18_MIGRATION_NAME
-    ).read_bytes()
+    migration_bytes = canonical_lf(
+        (
+            REPOSITORY_ROOT / "supabase" / "migrations" / PR18_MIGRATION_NAME
+        ).read_bytes()
+    )
     migration_text = migration_bytes.decode("utf-8")
     normalized = " ".join(migration_text.lower().split())
 
