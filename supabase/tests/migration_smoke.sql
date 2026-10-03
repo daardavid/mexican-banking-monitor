@@ -298,13 +298,14 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
     select
         (
             select
-                count(*) = 5
+                count(*) = 6
                 and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
                     ('canonical_concepts', 'r'),
                     ('canonical_concept_versions', 'r'),
                     ('canonical_concept_version_scopes', 'r'),
                     ('concept_mappings', 'r'),
-                    ('concept_mapping_versions', 'r')
+                    ('concept_mapping_versions', 'r'),
+                    ('canonical_observations_v1', 'v')
                 ))
             from pg_catalog.pg_class semantic_relation
             join pg_catalog.pg_namespace semantic_namespace
@@ -327,7 +328,7 @@ with expected_relations (schema_name, relation_name, expected_kind) as (
               on semantic_function_namespace.oid = semantic_function.pronamespace
             where semantic_function_namespace.nspname in ('semantic', 'metrics')
         )
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and (
             select
                 count(*) = 3
@@ -761,13 +762,14 @@ with evidence_columns_gate as (
         ))
         and (
             select
-                count(*) = 5
+                count(*) = 6
                 and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
                     ('canonical_concepts', 'r'),
                     ('canonical_concept_versions', 'r'),
                     ('canonical_concept_version_scopes', 'r'),
                     ('concept_mappings', 'r'),
-                    ('concept_mapping_versions', 'r')
+                    ('concept_mapping_versions', 'r'),
+                    ('canonical_observations_v1', 'v')
                 ))
             from pg_catalog.pg_class semantic_relation
             join pg_catalog.pg_namespace semantic_namespace
@@ -790,7 +792,7 @@ with evidence_columns_gate as (
               on semantic_function_namespace.oid = semantic_function.pronamespace
             where semantic_function_namespace.nspname in ('semantic', 'metrics')
         )
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and (
             select
                 count(*) = 3
@@ -2799,7 +2801,7 @@ with pr14_extension_gate as (
         and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
         and pg_catalog.to_regclass('semantic.concept_mappings') is not null
         and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('serving.current_publishable_facts') is not null
         and pg_catalog.to_regclass('audit.quality_issues') is null
@@ -3844,7 +3846,7 @@ with pr15_columns_gate as (
         and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
         and pg_catalog.to_regclass('semantic.concept_mappings') is not null
         and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null as valid
 )
@@ -4291,7 +4293,7 @@ with pr15a_columns_gate as (
         and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
         and pg_catalog.to_regclass('semantic.concept_mappings') is not null
         and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
         and not exists (
@@ -7699,13 +7701,14 @@ with pr16_relation_gate as (
     select
         (
             select
-                count(*) = 5
+                count(*) = 6
                 and bool_and((semantic_relation.relname, semantic_relation.relkind::text) in (
                     ('canonical_concepts', 'r'),
                     ('canonical_concept_versions', 'r'),
                     ('canonical_concept_version_scopes', 'r'),
                     ('concept_mappings', 'r'),
-                    ('concept_mapping_versions', 'r')
+                    ('concept_mapping_versions', 'r'),
+                    ('canonical_observations_v1', 'v')
                 ))
             from pg_catalog.pg_class semantic_relation
             join pg_catalog.pg_namespace semantic_namespace
@@ -7734,7 +7737,7 @@ with pr16_relation_gate as (
         and pg_catalog.to_regclass('semantic.canonical_concept_version_scopes') is not null
         and pg_catalog.to_regclass('semantic.concept_mappings') is not null
         and pg_catalog.to_regclass('semantic.concept_mapping_versions') is not null
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and pg_catalog.to_regclass('metrics.metric_definitions') is null
         and pg_catalog.to_regclass('metrics.metric_observations') is null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
@@ -8850,22 +8853,41 @@ reset role;
 
 with pr17_inventory_gate as (
     select
-        count(*) = 5
-        and bool_and(relation.relkind = 'r')
-        and bool_and(relation.relname in (
-            'canonical_concepts',
-            'canonical_concept_versions',
-            'canonical_concept_version_scopes',
-            'concept_mappings',
-            'concept_mapping_versions'
-        ))
+        count(*) = 6
+        and (
+            select
+                count(*) = 5
+                and bool_and(table_relation.relkind = 'r')
+                and bool_and(table_relation.relname in (
+                    'canonical_concepts',
+                    'canonical_concept_versions',
+                    'canonical_concept_version_scopes',
+                    'concept_mappings',
+                    'concept_mapping_versions'
+                ))
+            from pg_catalog.pg_class table_relation
+            join pg_catalog.pg_namespace table_namespace
+              on table_namespace.oid = table_relation.relnamespace
+            where table_namespace.nspname = 'semantic'
+              and table_relation.relkind = 'r'
+        )
+        and (
+            select
+                count(*) = 1
+                and bool_and(view_relation.relname = 'canonical_observations_v1')
+            from pg_catalog.pg_class view_relation
+            join pg_catalog.pg_namespace view_namespace
+              on view_namespace.oid = view_relation.relnamespace
+            where view_namespace.nspname = 'semantic'
+              and view_relation.relkind = 'v'
+        )
         and not exists (
             select 1
             from pg_catalog.pg_class other_relation
             join pg_catalog.pg_namespace other_namespace
               on other_namespace.oid = other_relation.relnamespace
             where other_namespace.nspname = 'semantic'
-              and other_relation.relkind in ('v', 'm', 'S', 'f')
+              and other_relation.relkind in ('m', 'S', 'f')
         )
         and not exists (
             select 1
@@ -8887,7 +8909,7 @@ with pr17_inventory_gate as (
             where namespace.nspname = 'semantic'
               and not trigger.tgisinternal
         )
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null as valid
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null as valid
     from pg_catalog.pg_class relation
     join pg_catalog.pg_namespace namespace
       on namespace.oid = relation.relnamespace
@@ -9245,7 +9267,7 @@ with pr17_inventory_gate as (
             'serving.publishable_facts_as_of(timestamptz)'
         ) is not null
         and pg_catalog.to_regclass('audit.quality_issues') is null
-        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is null
+        and pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
         and pg_catalog.to_regclass('public.regulatory_bank_metrics_v1') is null
         and not exists (
             select 1
@@ -10945,6 +10967,2184 @@ $$;
 
 \echo 'PR17 semantic mapping behavioral smoke passed.'
 
+-- PR18 canonical observation contract. Each case uses its own identity
+-- codes so an unrelated uniqueness failure cannot satisfy another predicate.
+
+insert into registry.measurement_units (unit_code, dimension, multiplier)
+values
+    ('pr18_unit', 'currency', 1::numeric),
+    ('pr18_other_unit', 'currency', 1::numeric);
+
+insert into registry.reporting_scopes (reporting_scope_id, scope_code)
+values
+    ('00000000-0000-4000-8018-00000000000e', 'pr18_scope'),
+    ('00000000-0000-4000-8018-00000000000f', 'pr18_scope_other');
+
+insert into evidence.regulators (regulator_id, regulator_code, name, country)
+values (
+    '00000000-0000-4000-8018-000000000001',
+    'pr18_regulator',
+    'PR18 synthetic regulator',
+    'MX'
+);
+
+insert into evidence.sources (source_id, regulator_id, source_code)
+values (
+    '00000000-0000-4000-8018-000000000002',
+    '00000000-0000-4000-8018-000000000001',
+    'pr18_source'
+);
+
+insert into evidence.source_definition_versions (
+    source_definition_version_id, source_id, definition_version, label, country,
+    sector, adapter_key, methodological_role, lifecycle, definition_snapshot,
+    config_hash, git_sha
+) values (
+    '00000000-0000-4000-8018-000000000003',
+    '00000000-0000-4000-8018-000000000002',
+    1, 'PR18 source', 'MX', 'banca_multiple', 'pr18_source', 'primary', 'draft',
+    '{"code":"pr18_source"}'::jsonb, repeat('1', 64), repeat('2', 40)
+);
+
+insert into evidence.source_releases (
+    source_release_id, source_id, release_family_key, revision,
+    covered_period_start, covered_period_end, published_at, first_observed_at,
+    release_identity_hash, metadata, supersedes_source_release_id
+) values (
+    '00000000-0000-4000-8018-000000000004',
+    '00000000-0000-4000-8018-000000000002',
+    'pr18_family', null, null, null, null, '2026-09-01T00:00:00Z',
+    repeat('a', 64), '{}'::jsonb, null
+);
+
+insert into evidence.source_artifacts (
+    source_artifact_id, source_release_id, filename, original_url, final_url,
+    mime_type, byte_length, sha256, artifact_role, storage_backend,
+    storage_bucket, storage_key, first_observed_at
+) values
+    (
+        '00000000-0000-4000-8018-000000000005',
+        '00000000-0000-4000-8018-000000000004',
+        'pr18.csv', 'https://example.test/pr18.csv', 'https://example.test/pr18.csv',
+        'text/csv', 10, repeat('d', 64), 'primary', 'local', null,
+        'sha256/pr18/primary', '2026-09-01T00:00:00Z'
+    ),
+    (
+        '00000000-0000-4000-8018-000000000006',
+        '00000000-0000-4000-8018-000000000004',
+        'pr18-revised.csv', 'https://example.test/pr18-revised.csv',
+        'https://example.test/pr18-revised.csv',
+        'text/csv', 11, repeat('e', 64), 'primary', 'local', null,
+        'sha256/pr18/revised', '2026-09-01T00:00:00Z'
+    ),
+    (
+        '00000000-0000-4000-8018-000000000007',
+        '00000000-0000-4000-8018-000000000004',
+        'pr18-sibling.csv', 'https://example.test/pr18-sibling.csv',
+        'https://example.test/pr18-sibling.csv',
+        'text/csv', 12, repeat('f', 64), 'primary', 'local', null,
+        'sha256/pr18/sibling', '2026-09-01T00:00:00Z'
+    );
+
+insert into registry.institutions (institution_id, institution_code, country)
+values
+    ('00000000-0000-4000-8018-00000000000a', 'pr18_bank', 'MX'),
+    ('00000000-0000-4000-8018-00000000000c', 'pr18_bank_other', 'MX');
+
+insert into registry.institution_definition_versions (
+    institution_definition_version_id, institution_id, definition_version,
+    canonical_label, lifecycle, provenance, definition_snapshot, definition_hash,
+    git_sha
+) values
+    (
+        '00000000-0000-4000-8018-00000000000b',
+        '00000000-0000-4000-8018-00000000000a',
+        1, 'PR18 Bank', 'draft', 'Synthetic PR18 fixture.',
+        '{"institution":{"code":"pr18_bank"}}'::jsonb,
+        repeat('3', 64), repeat('4', 40)
+    ),
+    (
+        '00000000-0000-4000-8018-00000000000d',
+        '00000000-0000-4000-8018-00000000000c',
+        1, 'PR18 Other Bank', 'retired', 'Synthetic PR18 fixture.',
+        '{"institution":{"code":"pr18_bank_other"}}'::jsonb,
+        repeat('5', 64), repeat('6', 40)
+    );
+
+insert into audit.ingestion_runs (
+    ingestion_run_id, source_id, source_definition_version, trigger_kind,
+    parameters, parser_implementation_key, parser_implementation_version,
+    identity_definition_hash, git_sha
+) values
+    (
+        '00000000-0000-4000-8018-000000000008',
+        '00000000-0000-4000-8018-000000000002',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('a', 64), repeat('1', 40)
+    ),
+    (
+        '00000000-0000-4000-8018-000000000009',
+        '00000000-0000-4000-8018-000000000002',
+        1, 'test', '{}'::jsonb, 'test_parser', '1', repeat('c', 64), repeat('1', 40)
+    );
+
+do $body$
+begin
+    execute $sql$create temp table pr18_env (
+    regulator_id uuid not null,
+    source_id uuid not null,
+    release_id uuid not null,
+    artifact_id uuid not null,
+    artifact_revision_id uuid not null,
+    artifact_sibling_id uuid not null,
+    run_id uuid not null,
+    identity_run_id uuid not null,
+    institution_id uuid not null,
+    definition_id uuid not null,
+    other_institution_id uuid not null,
+    other_definition_id uuid not null,
+    scope_id uuid not null,
+    other_scope_id uuid not null
+);$sql$;
+end
+$body$;
+
+insert into pr18_env (
+    regulator_id, source_id, release_id, artifact_id, artifact_revision_id,
+    artifact_sibling_id, run_id, identity_run_id, institution_id, definition_id,
+    other_institution_id, other_definition_id, scope_id, other_scope_id
+) values (
+    '00000000-0000-4000-8018-000000000001',
+    '00000000-0000-4000-8018-000000000002',
+    '00000000-0000-4000-8018-000000000004',
+    '00000000-0000-4000-8018-000000000005',
+    '00000000-0000-4000-8018-000000000006',
+    '00000000-0000-4000-8018-000000000007',
+    '00000000-0000-4000-8018-000000000008',
+    '00000000-0000-4000-8018-000000000009',
+    '00000000-0000-4000-8018-00000000000a',
+    '00000000-0000-4000-8018-00000000000b',
+    '00000000-0000-4000-8018-00000000000c',
+    '00000000-0000-4000-8018-00000000000d',
+    '00000000-0000-4000-8018-00000000000e',
+    '00000000-0000-4000-8018-00000000000f'
+);
+
+do $body$
+begin
+    execute $sql$create temp sequence pr18_locator;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create type pg_temp.pr18_fixture as (
+    reported_fact_id bigint,
+    institution_id uuid,
+    regulatory_registration_id uuid,
+    regulatory_concept_id uuid,
+    reporting_scope_id uuid,
+    canonical_concept_id uuid,
+    canonical_concept_version_id uuid,
+    concept_mapping_id uuid,
+    concept_mapping_version_id uuid,
+    concept_code text
+);$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_require_count(
+    label text,
+    fact_id bigint,
+    expected integer
+) returns void
+language plpgsql
+as $fn$
+declare
+    actual integer;
+begin
+    select count(*)::integer into actual
+    from semantic.canonical_observations_v1
+    where reported_fact_id = fact_id;
+    if actual is distinct from expected then
+        raise exception '% expected % canonical rows for fact %, found %',
+            label, expected, fact_id, actual;
+    end if;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_one(label text, fact_id bigint)
+returns semantic.canonical_observations_v1
+language plpgsql
+as $fn$
+declare
+    actual integer;
+    observation semantic.canonical_observations_v1;
+begin
+    select count(*)::integer into actual
+    from semantic.canonical_observations_v1
+    where reported_fact_id = fact_id;
+    if actual is distinct from 1 then
+        raise exception '% expected 1 canonical row for fact %, found %',
+            label, fact_id, actual;
+    end if;
+    select * into observation
+    from semantic.canonical_observations_v1
+    where reported_fact_id = fact_id;
+    return observation;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_has_higher(
+    fixture pg_temp.pr18_fixture,
+    economic_date date,
+    higher_lifecycle text
+) returns boolean
+language sql
+stable
+as $fn$
+    select exists (
+        select 1
+        from semantic.concept_mapping_versions lower_version
+        join semantic.concept_mapping_versions higher_version
+          on higher_version.concept_mapping_id = lower_version.concept_mapping_id
+         and higher_version.definition_version > lower_version.definition_version
+        where lower_version.concept_mapping_version_id
+                = fixture.concept_mapping_version_id
+          and lower_version.lifecycle = 'active'
+          and lower_version.validity @> economic_date
+          and higher_version.lifecycle = higher_lifecycle
+          and higher_version.validity @> economic_date
+    );
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_case(
+    case_code text,
+    economic_date date,
+    fact_period_kind text default 'instant',
+    fact_period_start date default null,
+    parsed_value numeric default 1250.5,
+    dimensions jsonb default '{}'::jsonb,
+    fact_unit_code text default 'pr18_unit',
+    registration_from date default '1990-01-01'::date,
+    registration_to date default null,
+    regulatory_lifecycle text default 'active',
+    regulatory_from date default '1990-01-01'::date,
+    regulatory_to date default null,
+    canonical_nature text default 'stock',
+    canonical_period text default 'instant',
+    canonical_lifecycle text default 'active',
+    mapping_lifecycle text default 'active',
+    mapping_comparability text default 'EXACT',
+    transformation_key text default null,
+    mapping_from date default '1990-01-01'::date,
+    mapping_to date default null,
+    scope_name text default 'primary',
+    institution_name text default 'primary',
+    decision text default 'ACCEPT',
+    include_mapping boolean default true
+) returns pg_temp.pr18_fixture
+language plpgsql
+as $fn$
+declare
+    env record;
+    result pg_temp.pr18_fixture;
+    scope_id uuid;
+    institution_id uuid;
+    definition_id uuid;
+begin
+    select * into env from pr18_env;
+    if scope_name = 'primary' then
+        scope_id := env.scope_id;
+    elsif scope_name = 'other' then
+        scope_id := env.other_scope_id;
+    else
+        raise exception 'PR18 % scope is unknown', case_code;
+    end if;
+    if institution_name = 'primary' then
+        institution_id := env.institution_id;
+        definition_id := env.definition_id;
+    elsif institution_name = 'other' then
+        institution_id := env.other_institution_id;
+        definition_id := env.other_definition_id;
+    else
+        raise exception 'PR18 % institution is unknown', case_code;
+    end if;
+    if fact_period_kind = 'instant' and fact_period_start is not null then
+        raise exception 'PR18 % instant fixture has period_start', case_code;
+    end if;
+    if fact_period_kind = 'duration' and fact_period_start is null then
+        raise exception 'PR18 % duration fixture is missing period_start', case_code;
+    end if;
+    if include_mapping and not (
+        (canonical_nature = 'stock' and canonical_period = 'instant')
+        or (canonical_nature = 'flow_ytd' and canonical_period = 'duration')
+    ) then
+        raise exception 'PR18 % canonical pair is invalid', case_code;
+    end if;
+
+    select
+        null::bigint,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::uuid,
+        null::text
+    into result;
+    result.institution_id := institution_id;
+    result.reporting_scope_id := scope_id;
+    result.concept_code := 'pr18_' || case_code;
+
+    insert into registry.regulatory_concepts (
+        source_id, external_code, definition_version, label, definition,
+        lifecycle, valid_from, valid_to, definition_snapshot, definition_hash,
+        git_sha
+    ) values (
+        env.source_id, 'PR18-' || case_code, 1,
+        'PR18 ' || case_code, 'Synthetic PR18 regulatory concept.',
+        regulatory_lifecycle, regulatory_from, regulatory_to,
+        '{"synthetic":"pr18"}'::jsonb, repeat('a', 64), repeat('b', 40)
+    ) returning regulatory_concept_id into result.regulatory_concept_id;
+
+    insert into registry.regulatory_concept_scopes (
+        regulatory_concept_id, reporting_scope_id
+    ) values (result.regulatory_concept_id, scope_id);
+
+    insert into registry.regulatory_registrations (
+        institution_id, institution_definition_version_id, regulator_id,
+        registration_type, registration_code, valid_from, valid_to
+    ) values (
+        institution_id, definition_id, env.regulator_id,
+        'pr18_registration', case_code, registration_from, registration_to
+    ) returning regulatory_registration_id into result.regulatory_registration_id;
+
+    if include_mapping then
+        insert into semantic.canonical_concepts (
+            concept_code, data_nature, period_kind, canonical_unit_code
+        ) values (
+            result.concept_code, canonical_nature, canonical_period, 'pr18_unit'
+        ) returning canonical_concept_id into result.canonical_concept_id;
+
+        insert into semantic.canonical_concept_versions (
+            canonical_concept_id, definition_version, label, definition, lifecycle,
+            definition_snapshot, definition_hash, git_sha
+        ) values (
+            result.canonical_concept_id, 1, 'PR18 ' || case_code,
+            'Synthetic PR18 canonical definition.', canonical_lifecycle,
+            '{"synthetic":"pr18"}'::jsonb, repeat('c', 64), repeat('d', 40)
+        ) returning canonical_concept_version_id
+            into result.canonical_concept_version_id;
+
+        insert into semantic.canonical_concept_version_scopes (
+            canonical_concept_version_id, reporting_scope_id
+        ) values (result.canonical_concept_version_id, scope_id);
+
+        insert into semantic.concept_mappings (
+            regulatory_concept_id, reporting_scope_id, canonical_concept_id
+        ) values (
+            result.regulatory_concept_id, scope_id, result.canonical_concept_id
+        ) returning concept_mapping_id into result.concept_mapping_id;
+
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_id, canonical_concept_id, reporting_scope_id,
+            canonical_concept_version_id, definition_version, valid_from, valid_to,
+            transformation_key, comparability, lifecycle, methodology_notes,
+            provenance, definition_snapshot, definition_hash, git_sha
+        ) values (
+            result.concept_mapping_id, result.canonical_concept_id, scope_id,
+            result.canonical_concept_version_id, 1, mapping_from, mapping_to,
+            transformation_key, mapping_comparability, mapping_lifecycle,
+            'Synthetic PR18 mapping.', 'Synthetic PR18 provenance.',
+            '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+        ) returning concept_mapping_version_id
+            into result.concept_mapping_version_id;
+    end if;
+
+    insert into reported.reported_facts (
+        regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+        reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+        source_definition_version, parser_implementation_key,
+        parser_implementation_version, identity_definition_hash, period_kind,
+        period_start, period_end, unit_code, dimensions, raw_value, parsed_value,
+        locator_kind, source_locator, first_observed_at
+    ) values (
+        result.regulatory_registration_id, env.regulator_id,
+        result.regulatory_concept_id, env.source_id, scope_id, env.artifact_id,
+        env.release_id, env.run_id, 1, 'test_parser', '1', repeat('a', 64),
+        fact_period_kind, fact_period_start, economic_date, fact_unit_code,
+        dimensions, parsed_value::text, parsed_value, 'csv',
+        jsonb_build_object(
+            'case', case_code,
+            'row', nextval('pg_temp.pr18_locator')
+        ),
+        '2026-09-01T00:00:00Z'
+    ) returning reported_fact_id into result.reported_fact_id;
+
+    if decision is not null then
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key,
+            reason
+        ) values (
+            result.reported_fact_id, decision, '2026-09-15T00:00:00Z', 'HUMAN',
+            'lead_reviewer', 'Synthetic PR18 ' || decision || ' for ' || case_code || '.'
+        );
+    end if;
+
+    return result;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_add_fact(
+    fixture pg_temp.pr18_fixture,
+    marker text,
+    economic_date date,
+    fact_period_kind text default 'instant',
+    fact_period_start date default null,
+    parsed_value numeric default 1,
+    dimensions jsonb default '{}'::jsonb,
+    fact_unit_code text default 'pr18_unit',
+    decision text default 'ACCEPT'
+) returns bigint
+language plpgsql
+as $fn$
+declare
+    env record;
+    fact_id bigint;
+begin
+    select * into env from pr18_env;
+    insert into reported.reported_facts (
+        regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+        reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+        source_definition_version, parser_implementation_key,
+        parser_implementation_version, identity_definition_hash, period_kind,
+        period_start, period_end, unit_code, dimensions, raw_value, parsed_value,
+        locator_kind, source_locator, first_observed_at
+    ) values (
+        fixture.regulatory_registration_id, env.regulator_id,
+        fixture.regulatory_concept_id, env.source_id, fixture.reporting_scope_id,
+        env.artifact_id, env.release_id, env.run_id, 1, 'test_parser', '1',
+        repeat('a', 64), fact_period_kind, fact_period_start, economic_date,
+        fact_unit_code, dimensions, parsed_value::text, parsed_value, 'csv',
+        jsonb_build_object(
+            'case', marker,
+            'row', nextval('pg_temp.pr18_locator')
+        ),
+        '2026-09-01T00:00:00Z'
+    ) returning reported_fact_id into fact_id;
+    if decision is not null then
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key,
+            reason
+        ) values (
+            fact_id, decision, '2026-09-15T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Synthetic PR18 ' || decision || ' for ' || marker || '.'
+        );
+    end if;
+    return fact_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_add_mapping_version(
+    fixture pg_temp.pr18_fixture,
+    definition_version integer,
+    lifecycle text,
+    comparability text,
+    transformation_key text,
+    valid_from date,
+    valid_to date,
+    canonical_version_id uuid
+) returns uuid
+language plpgsql
+as $fn$
+declare
+    version_id uuid;
+begin
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_id, canonical_concept_id, reporting_scope_id,
+        canonical_concept_version_id, definition_version, valid_from, valid_to,
+        transformation_key, comparability, lifecycle, methodology_notes,
+        provenance, definition_snapshot, definition_hash, git_sha
+    ) values (
+        fixture.concept_mapping_id, fixture.canonical_concept_id,
+        fixture.reporting_scope_id, canonical_version_id, definition_version,
+        valid_from, valid_to, transformation_key, comparability, lifecycle,
+        'Synthetic PR18 mapping version.', 'Synthetic PR18 provenance.',
+        '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+    ) returning concept_mapping_version_id into version_id;
+    return version_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_add_canonical_version(
+    fixture pg_temp.pr18_fixture,
+    definition_version integer,
+    lifecycle text,
+    support_primary boolean,
+    support_other boolean
+) returns uuid
+language plpgsql
+as $fn$
+declare
+    env record;
+    version_id uuid;
+begin
+    select * into env from pr18_env;
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_id, definition_version, label, definition, lifecycle,
+        definition_snapshot, definition_hash, git_sha
+    ) values (
+        fixture.canonical_concept_id, definition_version,
+        'PR18 head ' || definition_version::text,
+        'Synthetic PR18 canonical head.', lifecycle,
+        '{"synthetic":"pr18"}'::jsonb, repeat('c', 64), repeat('d', 40)
+    ) returning canonical_concept_version_id into version_id;
+    if support_primary then
+        insert into semantic.canonical_concept_version_scopes (
+            canonical_concept_version_id, reporting_scope_id
+        ) values (version_id, env.scope_id);
+    end if;
+    if support_other then
+        insert into semantic.canonical_concept_version_scopes (
+            canonical_concept_version_id, reporting_scope_id
+        ) values (version_id, env.other_scope_id);
+    end if;
+    return version_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_registration(
+    case_code text,
+    institution_name text,
+    valid_from date,
+    valid_to date
+) returns uuid
+language plpgsql
+as $fn$
+declare
+    env record;
+    institution_id uuid;
+    definition_id uuid;
+    registration_id uuid;
+begin
+    select * into env from pr18_env;
+    if institution_name = 'primary' then
+        institution_id := env.institution_id;
+        definition_id := env.definition_id;
+    else
+        institution_id := env.other_institution_id;
+        definition_id := env.other_definition_id;
+    end if;
+    insert into registry.regulatory_registrations (
+        institution_id, institution_definition_version_id, regulator_id,
+        registration_type, registration_code, valid_from, valid_to
+    ) values (
+        institution_id, definition_id, env.regulator_id,
+        'pr18_registration', case_code, valid_from, valid_to
+    ) returning regulatory_registration_id into registration_id;
+    return registration_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_successor(
+    predecessor_id bigint,
+    reason text,
+    registration_id uuid,
+    artifact_id uuid,
+    use_identity_run boolean,
+    dimensions jsonb,
+    fact_unit_code text,
+    parsed_value numeric,
+    decision text,
+    same_locator boolean
+) returns bigint
+language plpgsql
+as $fn$
+declare
+    env record;
+    predecessor reported.reported_facts%rowtype;
+    fact_id bigint;
+    stored_value numeric;
+begin
+    select * into env from pr18_env;
+    select * into predecessor
+    from reported.reported_facts
+    where reported_fact_id = predecessor_id;
+    stored_value := coalesce(parsed_value, predecessor.parsed_value);
+    insert into reported.reported_facts (
+        regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+        reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+        source_definition_version, parser_implementation_key,
+        parser_implementation_version, identity_definition_hash, period_kind,
+        period_start, period_end, unit_code, dimensions, raw_value, parsed_value,
+        locator_kind, source_locator, first_observed_at,
+        predecessor_reported_fact_id, supersession_reason
+    ) values (
+        coalesce(registration_id, predecessor.regulatory_registration_id),
+        predecessor.regulator_id, predecessor.regulatory_concept_id,
+        predecessor.source_id, predecessor.reporting_scope_id,
+        coalesce(artifact_id, predecessor.source_artifact_id),
+        predecessor.source_release_id,
+        case
+            when use_identity_run then env.identity_run_id
+            else predecessor.ingestion_run_id
+        end,
+        predecessor.source_definition_version,
+        predecessor.parser_implementation_key,
+        predecessor.parser_implementation_version,
+        case
+            when use_identity_run then repeat('c', 64)
+            else predecessor.identity_definition_hash
+        end,
+        predecessor.period_kind, predecessor.period_start, predecessor.period_end,
+        coalesce(fact_unit_code, predecessor.unit_code),
+        coalesce(dimensions, predecessor.dimensions),
+        stored_value::text, stored_value, predecessor.locator_kind,
+        case
+            when same_locator then predecessor.source_locator
+            else jsonb_build_object(
+                'successor', predecessor_id,
+                'reason', reason,
+                'row', nextval('pg_temp.pr18_locator')
+            )
+        end,
+        predecessor.first_observed_at, predecessor_id, reason
+    ) returning reported_fact_id into fact_id;
+    if decision is not null then
+        insert into audit.review_decisions (
+            reported_fact_id, decision, decided_at, actor_kind, human_actor_key,
+            reason
+        ) values (
+            fact_id, decision, '2026-09-18T00:00:00Z', 'HUMAN', 'lead_reviewer',
+            'Synthetic PR18 successor ' || reason || '.'
+        );
+    end if;
+    return fact_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_fanout(
+    fixture pg_temp.pr18_fixture,
+    case_code text,
+    comparability text
+) returns pg_temp.pr18_fixture
+language plpgsql
+as $fn$
+declare
+    result pg_temp.pr18_fixture;
+    nature text;
+    period_kind text;
+begin
+    select canonical.data_nature, canonical.period_kind
+    into nature, period_kind
+    from semantic.canonical_concepts canonical
+    where canonical.canonical_concept_id = fixture.canonical_concept_id;
+    result := fixture;
+    result.concept_code := 'pr18_' || case_code;
+    insert into semantic.canonical_concepts (
+        concept_code, data_nature, period_kind, canonical_unit_code
+    ) values (
+        result.concept_code, nature, period_kind, 'pr18_unit'
+    ) returning canonical_concept_id into result.canonical_concept_id;
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_id, definition_version, label, definition, lifecycle,
+        definition_snapshot, definition_hash, git_sha
+    ) values (
+        result.canonical_concept_id, 1, 'PR18 ' || case_code,
+        'Synthetic PR18 fan-out definition.', 'active',
+        '{"synthetic":"pr18"}'::jsonb, repeat('c', 64), repeat('d', 40)
+    ) returning canonical_concept_version_id
+        into result.canonical_concept_version_id;
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    ) values (result.canonical_concept_version_id, fixture.reporting_scope_id);
+    insert into semantic.concept_mappings (
+        regulatory_concept_id, reporting_scope_id, canonical_concept_id
+    ) values (
+        fixture.regulatory_concept_id, fixture.reporting_scope_id,
+        result.canonical_concept_id
+    ) returning concept_mapping_id into result.concept_mapping_id;
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_id, canonical_concept_id, reporting_scope_id,
+        canonical_concept_version_id, definition_version, valid_from, valid_to,
+        transformation_key, comparability, lifecycle, methodology_notes,
+        provenance, definition_snapshot, definition_hash, git_sha
+    ) values (
+        result.concept_mapping_id, result.canonical_concept_id,
+        fixture.reporting_scope_id, result.canonical_concept_version_id,
+        1, '1990-01-01'::date, null, null, comparability, 'active',
+        'Synthetic PR18 fan-out mapping.', 'Synthetic PR18 provenance.',
+        '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+    ) returning concept_mapping_version_id into result.concept_mapping_version_id;
+    return result;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_second_path(
+    fixture pg_temp.pr18_fixture,
+    case_code text,
+    economic_date date,
+    parsed_value numeric
+) returns bigint
+language plpgsql
+as $fn$
+declare
+    env record;
+    predecessor reported.reported_facts%rowtype;
+    path_concept_id uuid;
+    fact_id bigint;
+begin
+    select * into env from pr18_env;
+    select * into predecessor
+    from reported.reported_facts
+    where reported_fact_id = fixture.reported_fact_id;
+    if economic_date is distinct from predecessor.period_end then
+        raise exception 'PR18 second path date must match the original fact';
+    end if;
+    insert into registry.regulatory_concepts (
+        source_id, external_code, definition_version, label, definition,
+        lifecycle, valid_from, valid_to, definition_snapshot, definition_hash,
+        git_sha
+    ) values (
+        env.source_id, 'PR18-' || case_code, 1, 'PR18 ' || case_code,
+        'Synthetic PR18 second regulatory path.', 'active',
+        '1990-01-01'::date, null, '{"synthetic":"pr18"}'::jsonb,
+        repeat('a', 64), repeat('b', 40)
+    ) returning regulatory_concept_id into path_concept_id;
+    insert into registry.regulatory_concept_scopes (
+        regulatory_concept_id, reporting_scope_id
+    ) values (path_concept_id, fixture.reporting_scope_id);
+    insert into semantic.concept_mappings (
+        regulatory_concept_id, reporting_scope_id, canonical_concept_id
+    ) values (
+        path_concept_id, fixture.reporting_scope_id,
+        fixture.canonical_concept_id
+    );
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_id, canonical_concept_id, reporting_scope_id,
+        canonical_concept_version_id, definition_version, valid_from, valid_to,
+        transformation_key, comparability, lifecycle, methodology_notes,
+        provenance, definition_snapshot, definition_hash, git_sha
+    )
+    select
+        mapping.concept_mapping_id, fixture.canonical_concept_id,
+        fixture.reporting_scope_id, fixture.canonical_concept_version_id,
+        1, '1990-01-01'::date, null, null, 'EXACT', 'active',
+        'Synthetic PR18 second path.', 'Synthetic PR18 provenance.',
+        '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+    from semantic.concept_mappings mapping
+    where mapping.regulatory_concept_id = path_concept_id
+      and mapping.reporting_scope_id = fixture.reporting_scope_id
+      and mapping.canonical_concept_id = fixture.canonical_concept_id;
+    insert into reported.reported_facts (
+        regulatory_registration_id, regulator_id, regulatory_concept_id, source_id,
+        reporting_scope_id, source_artifact_id, source_release_id, ingestion_run_id,
+        source_definition_version, parser_implementation_key,
+        parser_implementation_version, identity_definition_hash, period_kind,
+        period_start, period_end, unit_code, dimensions, raw_value, parsed_value,
+        locator_kind, source_locator, first_observed_at
+    ) values (
+        predecessor.regulatory_registration_id, predecessor.regulator_id,
+        path_concept_id, predecessor.source_id, predecessor.reporting_scope_id,
+        predecessor.source_artifact_id, predecessor.source_release_id,
+        predecessor.ingestion_run_id, predecessor.source_definition_version,
+        predecessor.parser_implementation_key, predecessor.parser_implementation_version,
+        predecessor.identity_definition_hash, predecessor.period_kind,
+        predecessor.period_start, predecessor.period_end, predecessor.unit_code,
+        predecessor.dimensions, parsed_value::text, parsed_value,
+        predecessor.locator_kind,
+        jsonb_build_object(
+            'case', case_code,
+            'row', nextval('pg_temp.pr18_locator')
+        ),
+        predecessor.first_observed_at
+    ) returning reported_fact_id into fact_id;
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        fact_id, 'ACCEPT', '2026-09-15T00:00:00Z', 'HUMAN', 'lead_reviewer',
+        'Synthetic PR18 second path.'
+    );
+    return fact_id;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $body$
+begin
+    execute $sql$create function pg_temp.pr18_assert_catalog() returns void
+language plpgsql
+as $fn$
+declare
+    found_dependencies text;
+    required_hits integer;
+    forbidden_hits integer;
+    actual_typmod integer;
+begin
+    if (
+        select count(*)
+        from pg_catalog.pg_class relation
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'semantic'
+          and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+    ) <> 6 then
+        raise exception 'PR18 semantic relation count was not 6';
+    end if;
+    if not exists (
+        select 1
+        from pg_catalog.pg_class relation
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'semantic'
+          and relation.relname = 'canonical_observations_v1'
+          and relation.relkind = 'v'
+    ) then
+        raise exception 'PR18 canonical observation object was not an ordinary view';
+    end if;
+    if not exists (
+        select 1
+        from pg_catalog.pg_class relation
+        cross join lateral unnest(coalesce(relation.reloptions, array[]::text[]))
+            as view_option
+        where relation.oid = 'semantic.canonical_observations_v1'::regclass
+          and lower(view_option) in (
+              'security_invoker=true',
+              'security_invoker=on',
+              'security_invoker=1'
+          )
+    ) then
+        raise exception 'PR18 view is missing security_invoker';
+    end if;
+    if exists (
+        select 1
+        from pg_catalog.pg_proc function
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = function.pronamespace
+        where namespace.nspname = 'semantic'
+    ) then
+        raise exception 'PR18 semantic function inventory was not empty';
+    end if;
+    if exists (
+        select 1 from pg_catalog.pg_policies where schemaname = 'semantic'
+    ) then
+        raise exception 'PR18 semantic policy inventory was not empty';
+    end if;
+    if (
+        select count(*)
+        from pg_catalog.pg_index index_definition
+        join pg_catalog.pg_class table_relation
+          on table_relation.oid = index_definition.indrelid
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = table_relation.relnamespace
+        where namespace.nspname = 'semantic'
+    ) <> 11 then
+        raise exception 'PR18 semantic index count was not the existing 11';
+    end if;
+    if exists (
+        select 1
+        from pg_catalog.pg_index index_definition
+        where index_definition.indrelid = 'semantic.canonical_observations_v1'::regclass
+    ) then
+        raise exception 'PR18 added an index on the canonical observation view';
+    end if;
+    if (
+        select count(*)
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'semantic.canonical_observations_v1'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    ) <> 21 then
+        raise exception 'PR18 column count was not 21';
+    end if;
+    if exists (
+        select 1
+        from (
+            select
+                attribute.attname,
+                attribute.atttypid::regtype::text as type_name,
+                attribute.attnum
+            from pg_catalog.pg_attribute attribute
+            where attribute.attrelid = 'semantic.canonical_observations_v1'::regclass
+              and attribute.attnum > 0
+              and not attribute.attisdropped
+        ) actual
+        full join (
+            values
+                (1, 'lineage_root_reported_fact_id', 'bigint'),
+                (2, 'reported_fact_id', 'bigint'),
+                (3, 'institution_id', 'uuid'),
+                (4, 'regulatory_registration_id', 'uuid'),
+                (5, 'regulatory_concept_id', 'uuid'),
+                (6, 'reporting_scope_id', 'uuid'),
+                (7, 'canonical_concept_id', 'uuid'),
+                (8, 'concept_code', 'text'),
+                (9, 'canonical_concept_version_id', 'uuid'),
+                (10, 'canonical_definition_version', 'integer'),
+                (11, 'concept_mapping_id', 'uuid'),
+                (12, 'concept_mapping_version_id', 'uuid'),
+                (13, 'mapping_definition_version', 'integer'),
+                (14, 'comparability', 'text'),
+                (15, 'data_nature', 'text'),
+                (16, 'period_kind', 'text'),
+                (17, 'period_start', 'date'),
+                (18, 'period_end', 'date'),
+                (19, 'economic_date', 'date'),
+                (20, 'canonical_unit_code', 'text'),
+                (21, 'canonical_value', 'numeric')
+        ) as expected(attnum, attname, type_name)
+          on actual.attnum = expected.attnum
+         and actual.attname = expected.attname
+         and actual.type_name = expected.type_name
+        where actual.attnum is null or expected.attnum is null
+    ) then
+        raise exception 'PR18 column contract did not match';
+    end if;
+    select attribute.atttypmod into actual_typmod
+    from pg_catalog.pg_attribute attribute
+    where attribute.attrelid = 'semantic.canonical_observations_v1'::regclass
+      and attribute.attname = 'canonical_value';
+    if actual_typmod is distinct from -1 then
+        raise exception 'PR18 canonical_value typmod was not unconstrained numeric';
+    end if;
+    if not pg_catalog.has_table_privilege(
+        'service_role', 'semantic.canonical_observations_v1', 'SELECT'
+    ) or pg_catalog.has_table_privilege(
+        'service_role', 'semantic.canonical_observations_v1',
+        'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+    ) then
+        raise exception 'PR18 service_role privileges were not select-only';
+    end if;
+    if pg_catalog.has_table_privilege(
+        'anon', 'semantic.canonical_observations_v1',
+        'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+    ) or pg_catalog.has_table_privilege(
+        'authenticated', 'semantic.canonical_observations_v1',
+        'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+    ) then
+        raise exception 'PR18 granted anon or authenticated a privilege';
+    end if;
+    if exists (
+        select 1
+        from pg_catalog.pg_class relation
+        cross join lateral pg_catalog.aclexplode(relation.relacl) as relation_acl
+        where relation.oid = 'semantic.canonical_observations_v1'::regclass
+          and relation_acl.grantee = 0
+    ) then
+        raise exception 'PR18 granted a public privilege';
+    end if;
+    if exists (
+        select 1
+        from pg_catalog.pg_attribute attribute
+        where attribute.attrelid = 'semantic.canonical_observations_v1'::regclass
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+          and attribute.attacl is not null
+    ) then
+        raise exception 'PR18 added a column-level grant';
+    end if;
+
+    with dependencies as (
+        select distinct source_namespace.nspname || '.' || source_relation.relname
+            as relation_name
+        from pg_catalog.pg_depend dependency
+        join pg_catalog.pg_rewrite rewrite
+          on rewrite.oid = dependency.objid
+        join pg_catalog.pg_class view_relation
+          on view_relation.oid = rewrite.ev_class
+        join pg_catalog.pg_class source_relation
+          on source_relation.oid = dependency.refobjid
+        join pg_catalog.pg_namespace source_namespace
+          on source_namespace.oid = source_relation.relnamespace
+        where dependency.classid = 'pg_rewrite'::regclass
+          and dependency.refclassid = 'pg_class'::regclass
+          and view_relation.oid = 'semantic.canonical_observations_v1'::regclass
+          and source_relation.oid <> view_relation.oid
+          and source_relation.relkind in ('r', 'v', 'm', 'p')
+    )
+    select
+        string_agg(relation_name, ', ' order by relation_name),
+        (
+            select count(*)::integer
+            from unnest(array[
+                'serving.current_publishable_facts',
+                'registry.regulatory_registrations',
+                'registry.regulatory_concepts',
+                'semantic.concept_mappings',
+                'semantic.concept_mapping_versions',
+                'semantic.canonical_concept_versions',
+                'semantic.canonical_concept_version_scopes',
+                'semantic.canonical_concepts'
+            ]) as required_name
+            where required_name in (select dependencies.relation_name from dependencies)
+        ),
+        (
+            select count(*)::integer
+            from unnest(array[
+                'reported.reported_facts',
+                'audit.review_decisions',
+                'audit.effective_review_decisions',
+                'serving.current_observed_facts',
+                'serving.reported_fact_revision_ancestry'
+            ]) as forbidden_name
+            where forbidden_name in (select dependencies.relation_name from dependencies)
+        )
+    into found_dependencies, required_hits, forbidden_hits
+    from dependencies;
+    if required_hits is distinct from 8 then
+        raise exception 'PR18 missing a required dependency; found %',
+            found_dependencies;
+    end if;
+    if forbidden_hits is distinct from 0 then
+        raise exception 'PR18 has a forbidden direct dependency; found %',
+            found_dependencies;
+    end if;
+end;
+$fn$;$sql$;
+end
+$body$;
+
+do $$
+declare
+    b1 pg_temp.pr18_fixture;
+    obs record;
+    definition_lifecycle text;
+    ml pg_temp.pr18_fixture;
+    higher_version uuid;
+    overlay pg_temp.pr18_fixture;
+    fact_id bigint;
+    later_id bigint;
+    head_id uuid;
+    rejected boolean;
+    violated_constraint text;
+    registration_id uuid;
+    successor_id bigint;
+    sibling_id bigint;
+    env record;
+    fanout pg_temp.pr18_fixture;
+    other_fact_id bigint;
+    canonical_rows integer;
+    denied boolean;
+    denial_message text;
+begin
+    reset role;
+    perform pg_temp.pr18_assert_catalog();
+
+    if exists (select 1 from semantic.canonical_observations_v1) then
+        raise exception 'PR18 NG2 empty relevant state emitted a row';
+    end if;
+
+    b1 := pg_temp.pr18_case(
+        'b1', '2024-06-30'::date, parsed_value => '2500.125'::numeric
+    );
+    obs := pg_temp.pr18_one('PR18 B1', b1.reported_fact_id);
+    select lifecycle into definition_lifecycle
+    from registry.institution_definition_versions
+    where institution_definition_version_id = (
+        select institution_definition_version_id
+        from registry.regulatory_registrations
+        where regulatory_registration_id = b1.regulatory_registration_id
+    );
+    if definition_lifecycle is distinct from 'draft'
+        or obs.lineage_root_reported_fact_id is distinct from b1.reported_fact_id
+        or obs.reported_fact_id is distinct from b1.reported_fact_id
+        or obs.institution_id is distinct from b1.institution_id
+        or obs.regulatory_registration_id is distinct from b1.regulatory_registration_id
+        or obs.regulatory_concept_id is distinct from b1.regulatory_concept_id
+        or obs.reporting_scope_id is distinct from b1.reporting_scope_id
+        or obs.canonical_concept_id is distinct from b1.canonical_concept_id
+        or obs.concept_code is distinct from 'pr18_b1'
+        or obs.canonical_concept_version_id is distinct from b1.canonical_concept_version_id
+        or obs.canonical_definition_version is distinct from 1
+        or obs.concept_mapping_id is distinct from b1.concept_mapping_id
+        or obs.concept_mapping_version_id is distinct from b1.concept_mapping_version_id
+        or obs.mapping_definition_version is distinct from 1
+        or obs.comparability is distinct from 'EXACT'
+        or obs.data_nature is distinct from 'stock'
+        or obs.period_kind is distinct from 'instant'
+        or obs.period_start is not null
+        or obs.period_end is distinct from '2024-06-30'::date
+        or obs.economic_date is distinct from obs.period_end
+        or obs.canonical_unit_code is distinct from 'pr18_unit'
+        or obs.canonical_value is distinct from '2500.125'::numeric
+        or pg_typeof(obs.canonical_value) is distinct from 'numeric'::regtype
+        or obs.institution_id is distinct from (
+            select institution_id
+            from registry.regulatory_registrations
+            where regulatory_registration_id = obs.regulatory_registration_id
+        )
+    then
+        raise exception 'PR18 B1 canonical row did not preserve the eligible fact';
+    end if;
+
+    ml := pg_temp.pr18_case('ml1', '2024-06-30'::date);
+    obs := pg_temp.pr18_one('PR18 ML1', ml.reported_fact_id);
+    if obs.mapping_definition_version is distinct from 1
+        or obs.concept_mapping_version_id is distinct from ml.concept_mapping_version_id
+    then
+        raise exception 'PR18 ML1 did not emit the only active version';
+    end if;
+
+    ml := pg_temp.pr18_case('ml2', '2024-06-30'::date);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'draft', 'EXACT', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    if not pg_temp.pr18_has_higher(ml, '2024-06-30'::date, 'draft') then
+        raise exception 'PR18 ML2 did not arrange a higher covering draft';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 ML2', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ml3', '2024-06-30'::date);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'review_required', 'EXACT', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    if not pg_temp.pr18_has_higher(ml, '2024-06-30'::date, 'review_required') then
+        raise exception 'PR18 ML3 did not arrange a higher covering review_required version';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 ML3', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ml4', '2024-06-30'::date);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'retired', 'EXACT', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    if not pg_temp.pr18_has_higher(ml, '2024-06-30'::date, 'retired') then
+        raise exception 'PR18 ML4 did not arrange a higher covering retired version';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 ML4', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ml5', '2024-06-30'::date);
+    higher_version := pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'HARMONIZED', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    obs := pg_temp.pr18_one('PR18 ML5', ml.reported_fact_id);
+    if obs.mapping_definition_version is distinct from 2
+        or obs.concept_mapping_version_id is distinct from higher_version
+        or obs.comparability is distinct from 'HARMONIZED'
+    then
+        raise exception 'PR18 ML5 did not emit the higher active version';
+    end if;
+
+    ml := pg_temp.pr18_case(
+        'ml6', '2024-06-30'::date, mapping_lifecycle => 'draft'
+    );
+    perform pg_temp.pr18_require_count('PR18 ML6 draft', ml.reported_fact_id, 0);
+    higher_version := pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'EXACT', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    obs := pg_temp.pr18_one('PR18 ML6', ml.reported_fact_id);
+    if obs.concept_mapping_version_id is distinct from higher_version then
+        raise exception 'PR18 ML6 did not emit the higher active version over a draft';
+    end if;
+
+    ml := pg_temp.pr18_case('ml7', '2024-06-30'::date);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'NOT_COMPARABLE', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    perform pg_temp.pr18_require_count('PR18 ML7', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ml8', '2024-06-30'::date);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'EXACT', 'scale_units', '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    perform pg_temp.pr18_require_count('PR18 ML8', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case(
+        'ml9', '2024-06-30'::date, transformation_key => 'lower_scale'
+    );
+    perform pg_temp.pr18_require_count('PR18 ML9 lower', ml.reported_fact_id, 0);
+    higher_version := pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'EXACT', null, '1990-01-01'::date, null,
+        ml.canonical_concept_version_id
+    );
+    obs := pg_temp.pr18_one('PR18 ML9', ml.reported_fact_id);
+    if obs.concept_mapping_version_id is distinct from higher_version then
+        raise exception 'PR18 ML9 did not emit the higher null transformation';
+    end if;
+
+    overlay := pg_temp.pr18_case(
+        'do_span', '2019-06-15'::date, mapping_from => '2010-01-01'::date
+    );
+    perform pg_temp.pr18_add_mapping_version(
+        overlay, 2, 'active', 'HARMONIZED', null,
+        '2020-01-01'::date, '2020-12-31'::date,
+        overlay.canonical_concept_version_id
+    );
+    obs := pg_temp.pr18_one('PR18 DO1', overlay.reported_fact_id);
+    if obs.mapping_definition_version is distinct from 1
+        or obs.comparability is distinct from 'EXACT'
+    then
+        raise exception 'PR18 DO1 older covering version did not govern';
+    end if;
+    fact_id := pg_temp.pr18_add_fact(overlay, 'do2', '2020-01-01'::date);
+    obs := pg_temp.pr18_one('PR18 DO2', fact_id);
+    if obs.mapping_definition_version is distinct from 2 then
+        raise exception 'PR18 DO2 exact valid_from did not select the newer version';
+    end if;
+    fact_id := pg_temp.pr18_add_fact(overlay, 'do3', '2020-06-15'::date);
+    obs := pg_temp.pr18_one('PR18 DO3', fact_id);
+    if obs.mapping_definition_version is distinct from 2 then
+        raise exception 'PR18 DO3 inside range did not select the newer version';
+    end if;
+    fact_id := pg_temp.pr18_add_fact(overlay, 'do4', '2020-12-31'::date);
+    obs := pg_temp.pr18_one('PR18 DO4', fact_id);
+    if obs.mapping_definition_version is distinct from 2 then
+        raise exception 'PR18 DO4 exact valid_to did not select the newer version';
+    end if;
+    fact_id := pg_temp.pr18_add_fact(overlay, 'do5', '2021-01-01'::date);
+    obs := pg_temp.pr18_one('PR18 DO5', fact_id);
+    if obs.mapping_definition_version is distinct from 1
+        or obs.comparability is distinct from 'EXACT'
+    then
+        raise exception 'PR18 DO5 did not return to the older covering version';
+    end if;
+
+    overlay := pg_temp.pr18_case(
+        'do6', '2022-06-01'::date,
+        mapping_from => '2010-01-01'::date,
+        mapping_to => '2024-12-31'::date
+    );
+    perform pg_temp.pr18_add_mapping_version(
+        overlay, 2, 'active', 'HARMONIZED', null,
+        '2020-01-01'::date, null, overlay.canonical_concept_version_id
+    );
+    later_id := pg_temp.pr18_add_fact(overlay, 'do6_later', '2030-01-01'::date);
+    obs := pg_temp.pr18_one('PR18 DO6', later_id);
+    if obs.mapping_definition_version is distinct from 2
+        or obs.economic_date is distinct from '2030-01-01'::date
+    then
+        raise exception 'PR18 DO6 open-ended range did not cover the later date';
+    end if;
+
+    overlay := pg_temp.pr18_case(
+        'do7', '2015-06-01'::date, mapping_from => '2020-01-01'::date
+    );
+    if not exists (
+        select 1
+        from registry.regulatory_registrations registration
+        where registration.regulatory_registration_id = overlay.regulatory_registration_id
+          and registration.validity @> '2015-06-01'::date
+    ) or not exists (
+        select 1
+        from registry.regulatory_concepts concept
+        where concept.regulatory_concept_id = overlay.regulatory_concept_id
+          and concept.lifecycle = 'active'
+          and concept.valid_from <= '2015-06-01'::date
+    ) then
+        raise exception 'PR18 DO7 fixture did not isolate mapping coverage';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 DO7', overlay.reported_fact_id, 0);
+
+    overlay := pg_temp.pr18_case('do8', '1995-03-31'::date);
+    obs := pg_temp.pr18_one('PR18 DO8', overlay.reported_fact_id);
+    if obs.economic_date is distinct from '1995-03-31'::date
+        or obs.period_end is distinct from '1995-03-31'::date
+    then
+        raise exception 'PR18 DO8 historical economic date did not emit';
+    end if;
+
+    ml := pg_temp.pr18_case('ch1', '2024-06-30'::date);
+    obs := pg_temp.pr18_one('PR18 CH1', ml.reported_fact_id);
+    if obs.canonical_definition_version is distinct from 1 then
+        raise exception 'PR18 CH1 did not emit the active canonical head';
+    end if;
+
+    ml := pg_temp.pr18_case('ch2', '2024-06-30'::date);
+    perform pg_temp.pr18_one('PR18 CH2 before', ml.reported_fact_id);
+    perform pg_temp.pr18_add_canonical_version(ml, 2, 'draft', false, false);
+    perform pg_temp.pr18_require_count('PR18 CH2', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ch3', '2024-06-30'::date);
+    perform pg_temp.pr18_add_canonical_version(ml, 2, 'review_required', false, false);
+    perform pg_temp.pr18_require_count('PR18 CH3', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ch4', '2024-06-30'::date);
+    perform pg_temp.pr18_add_canonical_version(ml, 2, 'retired', false, false);
+    perform pg_temp.pr18_require_count('PR18 CH4', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ch5', '2024-06-30'::date);
+    perform pg_temp.pr18_add_canonical_version(ml, 2, 'active', true, false);
+    perform pg_temp.pr18_require_count('PR18 CH5', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ch6', '2024-06-30'::date);
+    head_id := pg_temp.pr18_add_canonical_version(ml, 2, 'active', true, false);
+    perform pg_temp.pr18_add_mapping_version(
+        ml, 2, 'active', 'EXACT', null, '1990-01-01'::date, null, head_id
+    );
+    obs := pg_temp.pr18_one('PR18 CH6', ml.reported_fact_id);
+    if obs.canonical_concept_version_id is distinct from head_id
+        or obs.canonical_definition_version is distinct from 2
+        or obs.mapping_definition_version is distinct from 2
+    then
+        raise exception 'PR18 CH6 explicit re-pin did not emit';
+    end if;
+
+    ml := pg_temp.pr18_case(
+        'ch7', '2024-06-30'::date, canonical_lifecycle => 'draft'
+    );
+    perform pg_temp.pr18_require_count('PR18 CH7', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('ch8', '2001-06-30'::date);
+    perform pg_temp.pr18_one('PR18 CH8 before', ml.reported_fact_id);
+    perform pg_temp.pr18_add_canonical_version(ml, 2, 'draft', false, false);
+    perform pg_temp.pr18_require_count('PR18 CH8', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('sc1', '2024-06-30'::date);
+    obs := pg_temp.pr18_one('PR18 SC1', ml.reported_fact_id);
+    if obs.reporting_scope_id is distinct from ml.reporting_scope_id then
+        raise exception 'PR18 SC1 did not emit the exact supported scope';
+    end if;
+
+    ml := pg_temp.pr18_case('sc2', '2024-06-30'::date, include_mapping => false);
+    insert into registry.regulatory_concept_scopes (
+        regulatory_concept_id, reporting_scope_id
+    )
+    select ml.regulatory_concept_id, shared.other_scope_id
+    from pr18_env shared;
+    insert into semantic.canonical_concepts (
+        concept_code, data_nature, period_kind, canonical_unit_code
+    ) values ('pr18_sc2_other', 'stock', 'instant', 'pr18_unit');
+    insert into semantic.canonical_concept_versions (
+        canonical_concept_id, definition_version, label, definition, lifecycle,
+        definition_snapshot, definition_hash, git_sha
+    )
+    select
+        canonical.canonical_concept_id, 1, 'PR18 SC2 other',
+        'Synthetic PR18 other-scope definition.', 'active',
+        '{"synthetic":"pr18"}'::jsonb, repeat('c', 64), repeat('d', 40)
+    from semantic.canonical_concepts canonical
+    where canonical.concept_code = 'pr18_sc2_other';
+    insert into semantic.canonical_concept_version_scopes (
+        canonical_concept_version_id, reporting_scope_id
+    )
+    select version.canonical_concept_version_id, shared.other_scope_id
+    from semantic.canonical_concept_versions version
+    join semantic.canonical_concepts canonical
+      on canonical.canonical_concept_id = version.canonical_concept_id
+    cross join pr18_env shared
+    where canonical.concept_code = 'pr18_sc2_other';
+    insert into semantic.concept_mappings (
+        regulatory_concept_id, reporting_scope_id, canonical_concept_id
+    )
+    select ml.regulatory_concept_id, shared.other_scope_id, canonical.canonical_concept_id
+    from semantic.canonical_concepts canonical
+    cross join pr18_env shared
+    where canonical.concept_code = 'pr18_sc2_other';
+    insert into semantic.concept_mapping_versions (
+        concept_mapping_id, canonical_concept_id, reporting_scope_id,
+        canonical_concept_version_id, definition_version, valid_from, valid_to,
+        transformation_key, comparability, lifecycle, methodology_notes,
+        provenance, definition_snapshot, definition_hash, git_sha
+    )
+    select
+        mapping.concept_mapping_id, mapping.canonical_concept_id,
+        mapping.reporting_scope_id, version.canonical_concept_version_id,
+        1, '1990-01-01'::date, null, null, 'EXACT', 'active',
+        'Synthetic PR18 other scope.', 'Synthetic PR18 provenance.',
+        '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+    from semantic.concept_mappings mapping
+    join semantic.canonical_concept_versions version
+      on version.canonical_concept_id = mapping.canonical_concept_id
+    where mapping.regulatory_concept_id = ml.regulatory_concept_id
+      and mapping.reporting_scope_id <> ml.reporting_scope_id;
+    perform pg_temp.pr18_require_count('PR18 SC2', ml.reported_fact_id, 0);
+
+    ml := pg_temp.pr18_case('sc3a', '2024-06-30'::date, scope_name => 'primary');
+    overlay := pg_temp.pr18_case('sc3b', '2024-06-30'::date, scope_name => 'other');
+    obs := pg_temp.pr18_one('PR18 SC3', ml.reported_fact_id);
+    if obs.reporting_scope_id is distinct from ml.reporting_scope_id
+        or obs.canonical_concept_id is distinct from ml.canonical_concept_id
+    then
+        raise exception 'PR18 SC3 primary scope cross-emitted';
+    end if;
+    obs := pg_temp.pr18_one('PR18 SC3 other', overlay.reported_fact_id);
+    if obs.reporting_scope_id is distinct from overlay.reporting_scope_id
+        or obs.canonical_concept_id is distinct from overlay.canonical_concept_id
+        or exists (
+            select 1
+            from semantic.canonical_observations_v1 observation
+            where observation.reported_fact_id = ml.reported_fact_id
+              and observation.reporting_scope_id = overlay.reporting_scope_id
+        )
+    then
+        raise exception 'PR18 SC3 scopes cross-emitted';
+    end if;
+
+    ml := pg_temp.pr18_case('sc4', '2024-06-30'::date);
+    perform pg_temp.pr18_one('PR18 SC4 before', ml.reported_fact_id);
+    head_id := pg_temp.pr18_add_canonical_version(ml, 2, 'active', false, true);
+    perform pg_temp.pr18_require_count('PR18 SC4', ml.reported_fact_id, 0);
+    rejected := false;
+    violated_constraint := null;
+    begin
+        insert into semantic.concept_mapping_versions (
+            concept_mapping_id, canonical_concept_id, reporting_scope_id,
+            canonical_concept_version_id, definition_version, valid_from, valid_to,
+            transformation_key, comparability, lifecycle, methodology_notes,
+            provenance, definition_snapshot, definition_hash, git_sha
+        ) values (
+            ml.concept_mapping_id, ml.canonical_concept_id, ml.reporting_scope_id,
+            head_id, 2, '1990-01-01'::date, null, null, 'EXACT', 'active',
+            'Synthetic PR18 unsupported re-pin.', 'Synthetic PR18 provenance.',
+            '{"synthetic":"pr18"}'::jsonb, repeat('e', 64), repeat('f', 40)
+        );
+    exception
+        when foreign_key_violation then
+            get stacked diagnostics violated_constraint = constraint_name;
+            rejected := violated_constraint
+                = 'concept_mapping_versions_version_scope_fkey';
+    end;
+    if not rejected then
+        raise exception 'PR18 SC4 invalid re-pin was accepted or failed as %',
+            violated_constraint;
+    end if;
+
+    perform pg_temp.pr18_require_count(
+        'PR18 REG1',
+        (
+            pg_temp.pr18_case(
+                'reg1', '2020-05-31'::date,
+                registration_from => '2020-06-01'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_one(
+        'PR18 REG2',
+        (
+            pg_temp.pr18_case(
+                'reg2', '2020-06-01'::date,
+                registration_from => '2020-06-01'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_one(
+        'PR18 REG3',
+        (
+            pg_temp.pr18_case(
+                'reg3', '2020-09-15'::date,
+                registration_from => '2020-06-01'::date,
+                registration_to => '2020-12-31'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_one(
+        'PR18 REG4',
+        (
+            pg_temp.pr18_case(
+                'reg4', '2020-12-31'::date,
+                registration_from => '2020-01-01'::date,
+                registration_to => '2020-12-31'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 REG5',
+        (
+            pg_temp.pr18_case(
+                'reg5', '2021-01-01'::date,
+                registration_from => '2020-01-01'::date,
+                registration_to => '2020-12-31'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    obs := pg_temp.pr18_one(
+        'PR18 REG6',
+        (
+            pg_temp.pr18_case('reg6', '2035-01-01'::date)
+        ).reported_fact_id
+    );
+    if obs.economic_date is distinct from '2035-01-01'::date then
+        raise exception 'PR18 REG6 open-ended registration did not emit';
+    end if;
+
+    ml := pg_temp.pr18_case('reg7', '2024-06-30'::date);
+    obs := pg_temp.pr18_one('PR18 REG7', ml.reported_fact_id);
+    if obs.institution_id is distinct from (
+        select institution_id
+        from registry.regulatory_registrations
+        where regulatory_registration_id = obs.regulatory_registration_id
+    ) then
+        raise exception 'PR18 REG7 institution did not come from the registration';
+    end if;
+
+    ml := pg_temp.pr18_case('reg8a', '2020-06-30'::date);
+    overlay := pg_temp.pr18_case('reg8b', '2023-06-30'::date);
+    obs := pg_temp.pr18_one('PR18 REG8', ml.reported_fact_id);
+    if obs.institution_id is distinct from (
+        select observation.institution_id
+        from semantic.canonical_observations_v1 observation
+        where observation.reported_fact_id = overlay.reported_fact_id
+    ) or obs.regulatory_registration_id = overlay.regulatory_registration_id
+        or obs.institution_id is distinct from ml.institution_id
+    then
+        raise exception 'PR18 REG8 historical registrations changed institution identity';
+    end if;
+
+    select * into env from pr18_env;
+    ml := pg_temp.pr18_case('reg9', '2024-06-30'::date);
+    registration_id := pg_temp.pr18_registration(
+        'reg9_frontier', 'other', '1990-01-01'::date, null
+    );
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'IDENTITY_CORRECTION', registration_id, null,
+        true, null, null, null, 'ACCEPT', true
+    );
+    perform pg_temp.pr18_require_count('PR18 REG9 predecessor', ml.reported_fact_id, 0);
+    obs := pg_temp.pr18_one('PR18 REG9', successor_id);
+    if obs.institution_id is distinct from env.other_institution_id
+        or obs.regulatory_registration_id is distinct from registration_id
+        or obs.institution_id is distinct from (
+            select institution_id
+            from registry.regulatory_registrations
+            where regulatory_registration_id = registration_id
+        )
+    then
+        raise exception 'PR18 REG9 frontier did not use its own registration institution';
+    end if;
+
+    ml := pg_temp.pr18_case(
+        'reg10', '2024-06-30'::date, institution_name => 'other'
+    );
+    obs := pg_temp.pr18_one('PR18 REG10', ml.reported_fact_id);
+    select lifecycle into definition_lifecycle
+    from registry.institution_definition_versions definition
+    join registry.regulatory_registrations registration
+      on registration.institution_definition_version_id
+          = definition.institution_definition_version_id
+    where registration.regulatory_registration_id = ml.regulatory_registration_id;
+    if definition_lifecycle is distinct from 'retired'
+        or obs.institution_id is distinct from ml.institution_id
+    then
+        raise exception 'PR18 REG10 retired institution definition suppressed a registration';
+    end if;
+
+    perform pg_temp.pr18_require_count(
+        'PR18 RV1',
+        (
+            pg_temp.pr18_case(
+                'rv1', '2020-05-31'::date, regulatory_from => '2020-06-01'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_one(
+        'PR18 RV2',
+        (
+            pg_temp.pr18_case(
+                'rv2', '2020-06-01'::date, regulatory_from => '2020-06-01'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_one(
+        'PR18 RV3',
+        (
+            pg_temp.pr18_case(
+                'rv3', '2020-09-15'::date,
+                regulatory_from => '2020-06-01'::date,
+                regulatory_to => '2020-12-31'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_one(
+        'PR18 RV4',
+        (
+            pg_temp.pr18_case(
+                'rv4', '2020-12-31'::date,
+                regulatory_from => '2020-01-01'::date,
+                regulatory_to => '2020-12-31'::date
+            )
+        ).reported_fact_id
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV5',
+        (
+            pg_temp.pr18_case(
+                'rv5', '2021-01-01'::date,
+                regulatory_from => '2020-01-01'::date,
+                regulatory_to => '2020-12-31'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_one(
+        'PR18 RV6',
+        (pg_temp.pr18_case('rv6', '2035-01-01'::date)).reported_fact_id
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV7',
+        (
+            pg_temp.pr18_case(
+                'rv7', '2024-06-30'::date, regulatory_from => '2025-01-01'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV8',
+        (
+            pg_temp.pr18_case(
+                'rv8', '2024-06-30'::date, mapping_from => '2025-01-01'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV9 draft',
+        (
+            pg_temp.pr18_case(
+                'rv9_draft', '2024-06-30'::date, regulatory_lifecycle => 'draft'
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV9 review_required',
+        (
+            pg_temp.pr18_case(
+                'rv9_review', '2024-06-30'::date,
+                regulatory_lifecycle => 'review_required'
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RV9 retired',
+        (
+            pg_temp.pr18_case(
+                'rv9_retired', '2024-06-30'::date, regulatory_lifecycle => 'retired'
+            )
+        ).reported_fact_id,
+        0
+    );
+
+    obs := pg_temp.pr18_one(
+        'PR18 CP1',
+        (pg_temp.pr18_case('cp1', '2024-06-30'::date)).reported_fact_id
+    );
+    if obs.comparability is distinct from 'EXACT' then
+        raise exception 'PR18 CP1 did not preserve EXACT';
+    end if;
+    obs := pg_temp.pr18_one(
+        'PR18 CP2',
+        (
+            pg_temp.pr18_case(
+                'cp2', '2024-06-30'::date, mapping_comparability => 'HARMONIZED'
+            )
+        ).reported_fact_id
+    );
+    if obs.comparability is distinct from 'HARMONIZED' then
+        raise exception 'PR18 CP2 did not preserve HARMONIZED';
+    end if;
+    obs := pg_temp.pr18_one(
+        'PR18 CP3',
+        (
+            pg_temp.pr18_case(
+                'cp3', '2024-06-30'::date, mapping_comparability => 'PROXY'
+            )
+        ).reported_fact_id
+    );
+    if obs.comparability is distinct from 'PROXY' then
+        raise exception 'PR18 CP3 did not preserve PROXY';
+    end if;
+    perform pg_temp.pr18_require_count(
+        'PR18 CP4',
+        (
+            pg_temp.pr18_case(
+                'cp4', '2024-06-30'::date, mapping_comparability => 'NOT_COMPARABLE'
+            )
+        ).reported_fact_id,
+        0
+    );
+
+    perform pg_temp.pr18_one(
+        'PR18 TR1',
+        (pg_temp.pr18_case('tr1', '2024-06-30'::date)).reported_fact_id
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 TR2',
+        (
+            pg_temp.pr18_case(
+                'tr2', '2024-06-30'::date, transformation_key => 'scale_units'
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 TR3',
+        (
+            pg_temp.pr18_case(
+                'tr3', '2024-06-30'::date, transformation_key => 'identity'
+            )
+        ).reported_fact_id,
+        0
+    );
+
+    perform pg_temp.pr18_one(
+        'PR18 UV1',
+        (pg_temp.pr18_case('uv1', '2024-06-30'::date)).reported_fact_id
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 UV2',
+        (
+            pg_temp.pr18_case(
+                'uv2', '2024-06-30'::date, fact_unit_code => 'pr18_other_unit'
+            )
+        ).reported_fact_id,
+        0
+    );
+    ml := pg_temp.pr18_case(
+        'uv3', '2024-06-30'::date,
+        parsed_value => '1234567.890123456789012345'::numeric
+    );
+    perform pg_temp.pr18_add_fact(
+        ml, 'uv3_large', '2024-07-31'::date, 'instant', null,
+        '99999999999999999999999999.123456789'::numeric,
+        '{}'::jsonb, 'pr18_unit', 'ACCEPT'
+    );
+    perform pg_temp.pr18_add_fact(
+        ml, 'uv3_negative', '2024-08-31'::date, 'instant', null,
+        '-42.75'::numeric, '{}'::jsonb, 'pr18_unit', 'ACCEPT'
+    );
+    perform pg_temp.pr18_add_fact(
+        ml, 'uv3_zero', '2024-09-30'::date, 'instant', null,
+        '0'::numeric, '{}'::jsonb, 'pr18_unit', 'ACCEPT'
+    );
+    if (
+        select count(*)
+        from semantic.canonical_observations_v1 observation
+        join reported.reported_facts fact
+          on fact.reported_fact_id = observation.reported_fact_id
+        where observation.canonical_concept_id = ml.canonical_concept_id
+          and observation.canonical_value is not distinct from fact.parsed_value
+          and pg_typeof(observation.canonical_value) = 'numeric'::regtype
+          and fact.parsed_value in (
+              '1234567.890123456789012345'::numeric,
+              '99999999999999999999999999.123456789'::numeric,
+              '-42.75'::numeric,
+              '0'::numeric
+          )
+    ) is distinct from 4 then
+        raise exception 'PR18 UV3 did not preserve exact numeric values';
+    end if;
+
+    obs := pg_temp.pr18_one(
+        'PR18 PE1',
+        (pg_temp.pr18_case('pe1', '2024-06-30'::date)).reported_fact_id
+    );
+    if obs.period_kind is distinct from 'instant'
+        or obs.period_start is not null
+        or obs.data_nature is distinct from 'stock'
+    then
+        raise exception 'PR18 PE1 instant stock fact did not emit';
+    end if;
+    obs := pg_temp.pr18_one(
+        'PR18 PE2',
+        (
+            pg_temp.pr18_case(
+                'pe2', '2024-06-30'::date,
+                fact_period_kind => 'duration',
+                fact_period_start => '2024-01-01'::date,
+                canonical_nature => 'flow_ytd',
+                canonical_period => 'duration'
+            )
+        ).reported_fact_id
+    );
+    if obs.period_kind is distinct from 'duration'
+        or obs.period_start is distinct from '2024-01-01'::date
+        or obs.data_nature is distinct from 'flow_ytd'
+        or obs.economic_date is distinct from obs.period_end
+    then
+        raise exception 'PR18 PE2 duration flow fact did not preserve period_start';
+    end if;
+    perform pg_temp.pr18_require_count(
+        'PR18 PE3',
+        (
+            pg_temp.pr18_case(
+                'pe3', '2024-06-30'::date,
+                canonical_nature => 'flow_ytd',
+                canonical_period => 'duration'
+            )
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 PE4',
+        (
+            pg_temp.pr18_case(
+                'pe4', '2024-06-30'::date,
+                fact_period_kind => 'duration',
+                fact_period_start => '2024-01-01'::date
+            )
+        ).reported_fact_id,
+        0
+    );
+    if exists (
+        select 1
+        from semantic.canonical_observations_v1
+        where economic_date is distinct from period_end
+    ) then
+        raise exception 'PR18 PE5 economic_date diverged from period_end';
+    end if;
+
+    perform pg_temp.pr18_one(
+        'PR18 DI1',
+        (pg_temp.pr18_case('di1', '2024-06-30'::date)).reported_fact_id
+    );
+    fact_id := (
+        pg_temp.pr18_case(
+            'di2', '2024-06-30'::date,
+            dimensions => '{"segment":"norte"}'::jsonb
+        )
+    ).reported_fact_id;
+    if not exists (
+        select 1
+        from serving.current_publishable_facts
+        where reported_fact_id = fact_id
+          and dimensions = '{"segment":"norte"}'::jsonb
+    ) then
+        raise exception 'PR18 DI2 publishable fact lost its dimensions';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 DI2', fact_id, 0);
+
+    perform pg_temp.pr18_require_count(
+        'PR18 RR1',
+        (
+            pg_temp.pr18_case('rr1', '2024-06-30'::date, decision => null)
+        ).reported_fact_id,
+        0
+    );
+    perform pg_temp.pr18_require_count(
+        'PR18 RR2',
+        (
+            pg_temp.pr18_case('rr2', '2024-06-30'::date, decision => 'REJECT')
+        ).reported_fact_id,
+        0
+    );
+    fact_id := (
+        pg_temp.pr18_case('rr3', '2024-06-30'::date)
+    ).reported_fact_id;
+    perform pg_temp.pr18_one('PR18 RR3', fact_id);
+    if not exists (
+        select 1 from serving.current_publishable_facts
+        where reported_fact_id = fact_id
+    ) then
+        raise exception 'PR18 RR3 accepted fact was not publishable';
+    end if;
+
+    ml := pg_temp.pr18_case('rr4', '2024-06-30'::date);
+    insert into audit.review_decisions (
+        reported_fact_id, decision, decided_at, actor_kind, human_actor_key, reason
+    ) values (
+        ml.reported_fact_id, 'REVOKE', '2026-09-20T00:00:00Z', 'HUMAN',
+        'lead_reviewer', 'Synthetic PR18 revocation.'
+    );
+    perform pg_temp.pr18_require_count('PR18 RR4', ml.reported_fact_id, 0);
+
+    select * into env from pr18_env;
+    ml := pg_temp.pr18_case('rr5', '2024-06-30'::date);
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_revision_id,
+        false, null, null, null, null, false
+    );
+    perform pg_temp.pr18_one('PR18 RR5', ml.reported_fact_id);
+    perform pg_temp.pr18_require_count('PR18 RR5 successor', successor_id, 0);
+
+    ml := pg_temp.pr18_case('rr6', '2024-06-30'::date);
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_revision_id,
+        false, null, null, null, 'ACCEPT', false
+    );
+    perform pg_temp.pr18_require_count('PR18 RR6 predecessor', ml.reported_fact_id, 0);
+    perform pg_temp.pr18_one('PR18 RR6', successor_id);
+
+    ml := pg_temp.pr18_case('rr7', '2024-06-30'::date);
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_revision_id,
+        false, null, null, null, 'REJECT', false
+    );
+    perform pg_temp.pr18_one('PR18 RR7', ml.reported_fact_id);
+    perform pg_temp.pr18_require_count('PR18 RR7 successor', successor_id, 0);
+
+    ml := pg_temp.pr18_case('rr8', '2024-06-30'::date);
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_revision_id,
+        false, null, null, null, 'ACCEPT', false
+    );
+    sibling_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_sibling_id,
+        false, null, null, null, 'ACCEPT', false
+    );
+    perform pg_temp.pr18_require_count('PR18 RR8', ml.reported_fact_id, 0);
+    perform pg_temp.pr18_require_count('PR18 RR8 sibling', successor_id, 0);
+    perform pg_temp.pr18_require_count('PR18 RR8 other sibling', sibling_id, 0);
+
+    ml := pg_temp.pr18_case('rr9', '2024-06-30'::date);
+    successor_id := pg_temp.pr18_successor(
+        ml.reported_fact_id, 'SOURCE_REVISION', null, env.artifact_revision_id,
+        false, '{"segment":"norte"}'::jsonb, null, null, 'ACCEPT', false
+    );
+    if exists (
+        select 1 from serving.current_publishable_facts
+        where reported_fact_id = ml.reported_fact_id
+    ) or not exists (
+        select 1 from serving.current_publishable_facts
+        where reported_fact_id = successor_id
+          and dimensions = '{"segment":"norte"}'::jsonb
+    ) or exists (
+        select 1
+        from reported.reported_facts
+        where reported_fact_id = ml.reported_fact_id
+          and dimensions <> '{}'::jsonb
+    ) then
+        raise exception 'PR18 RR9 fixture did not isolate frontier eligibility';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 RR9', ml.reported_fact_id, 0);
+    perform pg_temp.pr18_require_count('PR18 RR9 frontier', successor_id, 0);
+
+    if exists (
+        select 1
+        from semantic.canonical_observations_v1 observation
+        where not exists (
+            select 1
+            from serving.current_publishable_facts publishable
+            where publishable.reported_fact_id = observation.reported_fact_id
+        )
+    ) then
+        raise exception 'PR18 RR10 emitted a fact outside current publishable facts';
+    end if;
+
+    ml := pg_temp.pr18_case('fo1', '2024-06-30'::date);
+    fanout := pg_temp.pr18_fanout(ml, 'fo1_proxy', 'PROXY');
+    if (
+        select count(*)::integer
+        from semantic.canonical_observations_v1
+        where reported_fact_id = ml.reported_fact_id
+    ) is distinct from 2 or not exists (
+        select 1
+        from semantic.canonical_observations_v1
+        where reported_fact_id = ml.reported_fact_id
+          and comparability = 'EXACT'
+          and canonical_concept_id = ml.canonical_concept_id
+    ) or not exists (
+        select 1
+        from semantic.canonical_observations_v1
+        where reported_fact_id = ml.reported_fact_id
+          and comparability = 'PROXY'
+          and canonical_concept_id = fanout.canonical_concept_id
+    ) then
+        raise exception 'PR18 FO1 did not fan out EXACT and PROXY';
+    end if;
+    perform pg_temp.pr18_add_mapping_version(
+        fanout, 2, 'active', 'NOT_COMPARABLE', null,
+        '1990-01-01'::date, null, fanout.canonical_concept_version_id
+    );
+    obs := pg_temp.pr18_one('PR18 FO2', ml.reported_fact_id);
+    if obs.comparability is distinct from 'EXACT'
+        or obs.canonical_concept_id is distinct from ml.canonical_concept_id
+    then
+        raise exception 'PR18 FO2 did not leave exactly the unsuppressed mapping';
+    end if;
+
+    ml := pg_temp.pr18_case(
+        'fo3', '2024-03-31'::date, parsed_value => '10'::numeric
+    );
+    other_fact_id := pg_temp.pr18_second_path(
+        ml, 'fo3_other', '2024-03-31'::date, '11'::numeric
+    );
+    select count(*)::integer into canonical_rows
+    from semantic.canonical_observations_v1
+    where institution_id = ml.institution_id
+      and canonical_concept_id = ml.canonical_concept_id
+      and reporting_scope_id = ml.reporting_scope_id
+      and period_end = '2024-03-31'::date;
+    if canonical_rows is distinct from 2
+        or not exists (
+            select 1
+            from semantic.canonical_observations_v1
+            where reported_fact_id in (ml.reported_fact_id, other_fact_id)
+            having count(*) = 2
+        )
+    then
+        raise exception 'PR18 FO3 arbitrated an economic-key collision';
+    end if;
+
+    if exists (
+        select 1
+        from semantic.canonical_observations_v1
+        group by reported_fact_id, concept_mapping_id
+        having count(*) > 1
+    ) or exists (
+        select 1
+        from semantic.canonical_observations_v1
+        group by reported_fact_id, canonical_concept_id
+        having count(*) > 1
+    ) then
+        raise exception 'PR18 FO4 found a duplicate fact mapping or canonical concept';
+    end if;
+
+    fact_id := (
+        pg_temp.pr18_case('ng1', '2024-06-30'::date, include_mapping => false)
+    ).reported_fact_id;
+    if not exists (
+        select 1 from serving.current_publishable_facts
+        where reported_fact_id = fact_id
+    ) then
+        raise exception 'PR18 NG1 fixture was not publishable';
+    end if;
+    perform pg_temp.pr18_require_count('PR18 NG1', fact_id, 0);
+
+    set local role service_role;
+    select count(*)::integer into canonical_rows
+    from semantic.canonical_observations_v1;
+    reset role;
+    if canonical_rows = 0 then
+        raise exception 'PR18 service_role select saw no canonical rows';
+    end if;
+
+    denied := false;
+    begin
+        set local role anon;
+        perform count(*) from semantic.canonical_observations_v1;
+    exception
+        when insufficient_privilege then
+            denied := true;
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 allowed anon to select canonical observations';
+    end if;
+
+    denied := false;
+    begin
+        set local role authenticated;
+        perform count(*) from semantic.canonical_observations_v1;
+    exception
+        when insufficient_privilege then
+            denied := true;
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 allowed authenticated to select canonical observations';
+    end if;
+
+    denied := false;
+    begin
+        set local role service_role;
+        insert into semantic.canonical_observations_v1 (lineage_root_reported_fact_id)
+        values (1);
+    exception
+        when object_not_in_prerequisite_state then
+            get stacked diagnostics denial_message = message_text;
+            denied := denial_message
+                = 'cannot insert into view "canonical_observations_v1"';
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 service_role inserted through the view';
+    end if;
+
+    denied := false;
+    begin
+        set local role service_role;
+        execute 'update semantic.canonical_observations_v1 set concept_code = concept_code where false';
+    exception
+        when object_not_in_prerequisite_state then
+            get stacked diagnostics denial_message = message_text;
+            denied := denial_message
+                = 'cannot update view "canonical_observations_v1"';
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 service_role updated through the view';
+    end if;
+
+    denied := false;
+    begin
+        set local role service_role;
+        execute 'delete from semantic.canonical_observations_v1 where false';
+    exception
+        when object_not_in_prerequisite_state then
+            get stacked diagnostics denial_message = message_text;
+            denied := denial_message
+                = 'cannot delete from view "canonical_observations_v1"';
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 service_role deleted through the view';
+    end if;
+
+    denied := false;
+    begin
+        set local role service_role;
+        execute 'truncate semantic.canonical_observations_v1';
+    exception
+        when wrong_object_type then
+            get stacked diagnostics denial_message = message_text;
+            denied := denial_message
+                = '"canonical_observations_v1" is not a table';
+    end;
+    reset role;
+    if not denied then
+        raise exception 'PR18 service_role truncated the view';
+    end if;
+end
+$$;
+
+\echo 'PR18 canonical observation contract passed.'
+
 rollback;
 
 select
@@ -11094,6 +13294,24 @@ select
 do $$
 begin
     raise exception 'PR17 rollback cleanliness gate failed.';
+end
+$$;
+\endif
+
+select
+    pg_catalog.to_regclass('semantic.canonical_observations_v1') is not null
+    and not exists (select 1 from semantic.canonical_concepts)
+    and not exists (select 1 from semantic.concept_mappings)
+    as pr18_rollback_passed
+\gset
+
+\if :pr18_rollback_passed
+\echo 'PR18 smoke fixtures rolled back cleanly.'
+\else
+\echo 'PR18 smoke fixtures persisted unexpectedly.'
+do $$
+begin
+    raise exception 'PR18 rollback cleanliness gate failed.';
 end
 $$;
 \endif

@@ -35,6 +35,8 @@ PR15_MIGRATION_NAME = "20260919143000_reported_fact_schema.sql"
 PR15A_MIGRATION_NAME = "20260919180000_review_decision_events.sql"
 PR16_MIGRATION_NAME = "20260922120000_fact_current_as_of_queries.sql"
 PR17_MIGRATION_NAME = "20260926093000_semantic_mapping_schema.sql"
+PR18_MIGRATION_NAME = "20261002140000_canonical_observation_view.sql"
+PR18_MIGRATION_SHA256 = "fbcaecdcf941461d6d5834199dddfb7831403dcc0ea664ae640a3c7ecd004fed"
 HistoryRow = MIGRATION_SAFETY.HistoryRow
 Migration = MIGRATION_SAFETY.Migration
 MigrationValidationError = MIGRATION_SAFETY.MigrationValidationError
@@ -45,6 +47,10 @@ parse_history_json = MIGRATION_SAFETY.parse_history_json
 validate_dry_run = MIGRATION_SAFETY.validate_dry_run
 validate_history = MIGRATION_SAFETY.validate_history
 legacy_sha256 = MIGRATION_SAFETY._legacy_sha256
+
+
+def canonical_lf(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
 
 
 def migration(tmp_path: Path, version: str, name: str = "change") -> Migration:
@@ -90,6 +96,7 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     pr15a_content = migrations[6].path.read_bytes().replace(b"\r\n", b"\n")
     pr16_content = migrations[7].path.read_bytes().replace(b"\r\n", b"\n")
     pr17_content = migrations[8].path.read_bytes().replace(b"\r\n", b"\n")
+    pr18_content = canonical_lf(migrations[9].path.read_bytes())
 
     assert [item.path.name for item in migrations] == [
         LEGACY_MIGRATION_NAME,
@@ -101,8 +108,10 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
         PR15A_MIGRATION_NAME,
         PR16_MIGRATION_NAME,
         PR17_MIGRATION_NAME,
+        PR18_MIGRATION_NAME,
     ]
-    assert len(migrations) == 9
+    assert len(migrations) == 10
+    assert hashlib.sha256(pr18_content).hexdigest() == PR18_MIGRATION_SHA256
     assert legacy_sha256(content) == LEGACY_MIGRATION_SHA256
     assert legacy_sha256(content.replace(b"\n", b"\r\n")) == LEGACY_MIGRATION_SHA256
     assert hashlib.sha256(pr10_content).hexdigest() == PR10_MIGRATION_SHA256
@@ -113,9 +122,11 @@ def test_repository_migrations_are_valid_and_legacy_is_immutable() -> None:
     assert "create table audit.review_decisions" in pr15a_content.decode("utf-8")
     assert "create view serving.current_observed_facts" in pr16_content.decode("utf-8")
     assert "create table semantic.canonical_concepts" in pr17_content.decode("utf-8")
+    assert "create view semantic.canonical_observations_v1" in pr18_content.decode("utf-8")
     assert PR15A_MIGRATION_NAME > PR15_MIGRATION_NAME
     assert PR16_MIGRATION_NAME > PR15A_MIGRATION_NAME
     assert PR17_MIGRATION_NAME > PR16_MIGRATION_NAME
+    assert PR18_MIGRATION_NAME > PR17_MIGRATION_NAME
 
 
 def test_migration_smoke_fails_closed_and_allows_only_approved_audit_relations() -> None:
@@ -1361,6 +1372,164 @@ def test_pr17_mapping_pin_probes_avoid_persisted_definition_version() -> None:
         assert "exception when foreign_key_violation then" in probe
         assert "unique_violation" not in probe
         assert "when others" not in probe
+
+
+def test_pr18_migration_is_private_canonical_observation_view() -> None:
+    migration_bytes = canonical_lf(
+        (
+            REPOSITORY_ROOT / "supabase" / "migrations" / PR18_MIGRATION_NAME
+        ).read_bytes()
+    )
+    migration_text = migration_bytes.decode("utf-8")
+    normalized = " ".join(migration_text.lower().split())
+
+    assert hashlib.sha256(migration_bytes).hexdigest() == PR18_MIGRATION_SHA256
+    assert forbidden_operations(migration_text) == []
+    assert normalized.count("create view ") == 1
+    assert "create view semantic.canonical_observations_v1" in normalized
+    assert "security_invoker = true" in normalized
+    assert "from serving.current_publishable_facts" in normalized
+    assert "parsed_value as canonical_value" in normalized
+    assert "publishable.dimensions = '{}'::jsonb" in normalized
+    assert "not exists" in normalized
+    assert "grant select" in normalized
+    assert "insert into" not in normalized
+    assert "create table " not in normalized
+    assert "create index " not in normalized
+    assert "create function " not in normalized
+    assert "create policy " not in normalized
+    assert "security definer" not in normalized
+    for absent_relation in (
+        "reported.reported_facts",
+        "audit.review_decisions",
+        "audit.effective_review_decisions",
+        "serving.current_observed_facts",
+        "serving.reported_fact_revision_ancestry",
+    ):
+        assert absent_relation not in normalized
+    for pattern in (
+        r"\bcreate\s+or\s+replace\s+view\b",
+        r"\bdrop\s+view\b",
+        r"\bselect\s+\*",
+        r"\bdistinct\s+on\b",
+        r"\blimit\b",
+        r"\border\s+by\b",
+        r"\bover\s*\(",
+        r"\brow_number\s*\(",
+        r"\bnow\s*\(",
+        r"\bcurrent_date\b",
+        r"\bcurrent_timestamp\b",
+        r"\bclock_timestamp\s*\(",
+        r"\bstatement_timestamp\s*\(",
+        r"\btransaction_timestamp\s*\(",
+        r"\blocaltimestamp\b",
+        r"numeric\s*\(\s*38\s*,\s*18\s*\)",
+        r"\bexecute\b",
+    ):
+        assert re.search(pattern, normalized) is None
+
+
+def test_pr18_smoke_covers_canonical_observation_behavior() -> None:
+    smoke_text = (
+        REPOSITORY_ROOT / "supabase" / "tests" / "migration_smoke.sql"
+    ).read_text(encoding="utf-8")
+    normalized = " ".join(smoke_text.lower().split())
+    for label in (
+        "PR18 B1",
+        "PR18 ML1",
+        "PR18 ML2",
+        "PR18 ML3",
+        "PR18 ML4",
+        "PR18 ML5",
+        "PR18 ML6",
+        "PR18 ML7",
+        "PR18 ML8",
+        "PR18 ML9",
+        "PR18 DO1",
+        "PR18 DO2",
+        "PR18 DO3",
+        "PR18 DO4",
+        "PR18 DO5",
+        "PR18 DO6",
+        "PR18 DO7",
+        "PR18 DO8",
+        "PR18 CH1",
+        "PR18 CH2",
+        "PR18 CH3",
+        "PR18 CH4",
+        "PR18 CH5",
+        "PR18 CH6",
+        "PR18 CH7",
+        "PR18 CH8",
+        "PR18 SC1",
+        "PR18 SC2",
+        "PR18 SC3",
+        "PR18 SC4",
+        "PR18 REG1",
+        "PR18 REG2",
+        "PR18 REG3",
+        "PR18 REG4",
+        "PR18 REG5",
+        "PR18 REG6",
+        "PR18 REG7",
+        "PR18 REG8",
+        "PR18 REG9",
+        "PR18 REG10",
+        "PR18 RV1",
+        "PR18 RV2",
+        "PR18 RV3",
+        "PR18 RV4",
+        "PR18 RV5",
+        "PR18 RV6",
+        "PR18 RV7",
+        "PR18 RV8",
+        "PR18 RV9",
+        "PR18 CP1",
+        "PR18 CP2",
+        "PR18 CP3",
+        "PR18 CP4",
+        "PR18 TR1",
+        "PR18 TR2",
+        "PR18 TR3",
+        "PR18 UV1",
+        "PR18 UV2",
+        "PR18 UV3",
+        "PR18 PE1",
+        "PR18 PE2",
+        "PR18 PE3",
+        "PR18 PE4",
+        "PR18 PE5",
+        "PR18 DI1",
+        "PR18 DI2",
+        "PR18 RR1",
+        "PR18 RR2",
+        "PR18 RR3",
+        "PR18 RR4",
+        "PR18 RR5",
+        "PR18 RR6",
+        "PR18 RR7",
+        "PR18 RR8",
+        "PR18 RR9",
+        "PR18 RR10",
+        "PR18 FO1",
+        "PR18 FO2",
+        "PR18 FO3",
+        "PR18 FO4",
+        "PR18 NG1",
+        "PR18 NG2",
+        "pr18_rollback_passed",
+    ):
+        assert label.lower() in normalized
+    assert "create view semantic.canonical_observations_v1" not in normalized
+
+    start = normalized.find("pr18 sc4")
+    end = normalized.find("pr18 reg1", start)
+    assert start != -1 and end > start
+    probe = normalized[start:end]
+    assert "exception when foreign_key_violation then" in probe
+    assert "concept_mapping_versions_version_scope_fkey" in probe
+    assert "when others" not in probe
+    assert "unique_violation" not in probe
 
 
 @pytest.mark.parametrize(
