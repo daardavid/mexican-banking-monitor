@@ -20,7 +20,10 @@ not a changelog and does not make the roadmap executable.
   VERIFIED. PR17 `feat/semantic-mapping-schema` is MERGED / COMPLETE; production deployment
   is COMPLETE / VERIFIED. PR18 `feat/canonical-observation-view` is MERGED / COMPLETE;
   production deployment is COMPLETE / VERIFIED. Production contains
-  `semantic.canonical_observations_v1`. PR19 has not started.
+  `semantic.canonical_observations_v1`. PR19 `feat/cnbv-release-discovery` is
+  IMPLEMENTED ON FEATURE BRANCH / LOCAL REVIEW COMPLETE / NOT YET MERGED.
+  NO PRODUCTION DEPLOYMENT. NO PRODUCTION CONTACT REQUIRED.
+  NO DATABASE MIGRATION.
 
 ## Implemented now
 
@@ -156,7 +159,25 @@ not a changelog and does not make the roadmap executable.
   confirmation of the `period_end` convention, registration-period behavior, actual
   dimensional behavior, and source unit behavior. PR22 and PR23 metric layers must fail
   closed on unresolved economic-key collisions. PR24 owns the later quality workflow.
-  PR25 owns point-in-time semantics. PR19 has not started.
+  PR25 owns point-in-time semantics.
+- PR19 `feat/cnbv-release-discovery` implements `cnbv_portfolio` source-config artifact
+  endpoints and the required package `historical_series_data`, `concept_catalog`, and
+  `institution_catalog`: the CSV ZIP plus both catalogs. XLSX is excluded from the
+  required package. Identity is a source-independent observed artifact set with exact role
+  and SHA-256 release identity. Retrieval is secure authority-sensitive HTTP: manual
+  redirect authorization before every request, verified TLS with certifi and the reviewed
+  GlobalSign intermediate, raw identity encoding, bounded downloads, and HTTP observations.
+  The CNBV-specific adapter performs structural ZIP and catalog validation and package
+  observation without persistence.
+- Serie Histórica Banca Múltiple is exposed as a cumulative package. Current official
+  artifact URLs are fixed, and CNBV overwrites those files in place. There is no
+  deterministic enumerable monthly release surface. `published_at` is not exposed, and no
+  official revision label is exposed, so `revision` and `published_at` remain null. A PR19
+  release identity is an exact observed snapshot of the required artifact set, not an
+  assertion of an atomic CNBV publication. The observed historical ZIP is 68,899,653 bytes.
+  ZIP member `sh_datos_40.csv` has an observed uncompressed size of 584,795,606 bytes.
+  Observed period coverage is 200012 through 202607. Apr 2026, May 2026, and Jun 2026 are
+  present.
 - One legacy initial migration creating `core`, `ops`, `analytics`, and the derived
   `public.bank_metrics` table with public read-only RLS.
 - CI quality checks on Linux and PowerShell regression/full checks on Windows.
@@ -177,8 +198,11 @@ not a changelog and does not make the roadmap executable.
   main-only, requires a clean tree tracking `origin/main`, rejects local/diverged history, and uses
   explicit fetch plus fast-forward.
 - Streamlit placeholder dashboard; it does not yet consume regulatory data.
-- A source-format spike document, but no real CNBV discovery, parser, facts ingestion, metric
-  engine, backfill, or public v1 dataset.
+- A source-format spike document remains. The repository has CNBV source discovery, secure
+  retrieval, and structural validation on `feat/cnbv-release-discovery`. It still has no
+  full CNBV parser, period parser, concept extraction or matching, institution extraction or
+  matching, fact ingestion, real evidence persistence, definitions publisher, real reported
+  facts, metric engine, backfill, or public v1 dataset.
 
 ## Architecture status
 
@@ -197,6 +221,8 @@ and registration identity, temporal/review and supersession semantics, controlle
 and Git/YAML editorial authority with Python as executable authority. ADR 0008 is Accepted
 and frozen on `main`. ADR 0009 is Accepted.
 ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in ADR 0008.
+ADR 0010 is Accepted on `feat/cnbv-release-discovery`. It is not frozen on `main`.
+ADRs 0003–0009 remain unchanged.
 
 ## Legacy status
 
@@ -234,7 +260,9 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   - `20261002140000 / canonical_observation_view`
 - This repository snapshot contains exactly ten migrations and production has exactly ten
   migrations. Pending production migrations: 0. No pending production migration remains.
-  Production contains `semantic.canonical_observations_v1`.
+  Production contains `semantic.canonical_observations_v1`. Production state is unchanged
+  from PR18: zero real CNBV artifacts, zero evidence rows, zero reported facts,
+  zero review decisions, and zero canonical observations.
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline. The last completed production
   migration dry-run, after the PR18 deployment, was a no-op.
@@ -401,7 +429,8 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   VERIFIED.
 - `PR18 feat/canonical-observation-view` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR19 feat/cnbv-release-discovery` — NOT STARTED.
+- `PR19 feat/cnbv-release-discovery` — IMPLEMENTED ON FEATURE BRANCH /
+  LOCAL REVIEW COMPLETE / NOT YET MERGED.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
   deployment COMPLETE / VERIFIED; PR14 MERGED / COMPLETE with production deployment COMPLETE /
@@ -431,21 +460,31 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   a reviewed definitions publisher must exist. The default owner is the PR21 workstream. PR17
   does not implement that publisher. Splitting the gate into its own PR requires an explicit
   roadmap amendment first. The roadmap is not renumbered.
-- CNBV source discovery, exact source-contract confirmation, and parser implementation remain
-  pending for later phases. PR18 does not implement source discovery, a CNBV parser,
-  definitions publishing, a transformation registry, dimensional mapping, a metric engine, a
-  quality issue or blocker layer, point-in-time semantic reconstruction, or a public serving
-  contract.
-- Real CNBV publication remains gated before PR21 on confirmation of the `period_end`
+- Real CNBV publication before PR21 still requires confirmation of the `period_end`
   convention, registration-period behavior, actual dimensional behavior, and source unit
-  behavior.
+  behavior. PR19 does not discharge these semantic gates.
 - PR22 and PR23 metric layers must fail closed on unresolved economic-key collisions.
-- PR25 owns point-in-time semantics. PR19 `feat/cnbv-release-discovery` has not started.
-- Before PR19 / first real CNBV artifact ingestion, measure representative CNBV artifact sizes,
-  verify that the current effective 50 MiB Storage capacity is sufficient, and evaluate standard-
-  upload suitability for the real artifact sizes. If capacity or transport is insufficient, a
-  separately reviewed Storage capacity/transport change is required. This gate must be satisfied
-  before PR19 and does not block PR15a–PR18.
+- PR25 owns point-in-time semantics. PR20 has not started.
+- Current production effective/default Storage capacity remains 52,428,800 bytes (50 MiB).
+  The observed historical ZIP is 68,899,653 bytes, so current capacity is insufficient for
+  that observed ZIP. The bucket remains valid for objects within its effective limit.
+  PR19 makes no ArtifactStore calls.
+  Before PR21 performs the first real CNBV ArtifactStore/Supabase upload, a separately
+  reviewed Storage capacity and/or upload-transport solution must be completed and verified.
+- PR21 package-consistency gate: CNBV updates the required artifacts non-atomically and at
+  different times. An observed artifact-set snapshot is exact evidence of what was observed
+  and does not automatically establish publication eligibility. Before PR21 automatically
+  accepts or publishes facts from a snapshot, PR21 must define and prove package consistency
+  and publication eligibility. PR19 intentionally defines no arbitrary quiet window.
+- `PR20_FULL_ZIP_STREAM_CAP_REQUIRED`: when PR20 performs the full decompressed read of
+  `sh_datos_40.csv`, the parser must enforce a runtime decompressed-byte limit while
+  streaming. It must not rely solely on `ZipInfo.file_size`. PR19 structural validation
+  reads only enough bytes to verify the header and does not discharge this gate.
+- The roadmap phrase "June 2026 release" cannot currently be interpreted as a retrievable
+  distinct monthly artifact. The current official cumulative file already extends beyond
+  June 2026. Before PR21 depends on that phrase operationally, interpret the vertical slice
+  as the first observed cumulative snapshot containing Apr–Jun 2026, unless official
+  archival evidence later proves a distinct June 2026 artifact snapshot.
 
 ## How to update this file
 

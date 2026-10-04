@@ -288,16 +288,6 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
     assert "PR15 remains blocked" not in current_state
     assert "PR15 BLOCKED" not in current_state
     assert "Production still has exactly five migrations." not in current_state
-    assert (
-        "Before PR19 / first real CNBV artifact ingestion, measure representative CNBV "
-        "artifact sizes"
-        in current_state
-    )
-    assert (
-        "separately reviewed Storage capacity/transport change is required. This gate must be "
-        "satisfied\n  before PR19 and does not block PR15a\u2013PR18."
-        in current_state
-    )
 
 
 def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
@@ -403,7 +393,6 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
     )
 
     for forbidden_claim in (
-        "IMPLEMENTED ON FEATURE BRANCH",
         "IMPLEMENTED on this feature branch",
         "Production has exactly six migrations",
         "implemented and not deployed",
@@ -706,8 +695,6 @@ def test_pr18_is_recorded_as_merged_and_production_verified() -> None:
         in current_state
     )
     assert "`service_role` has SELECT only." in current_state
-    assert "PR19 has not started." in current_state
-    assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." in current_state
     for transient_claim in (
         "IMPLEMENTED LOCALLY / FEATURE BRANCH",
         "is not merged",
@@ -768,3 +755,80 @@ def test_pr18_is_recorded_as_merged_and_production_verified() -> None:
         "PR25 owns point-in-time semantics.",
     ):
         assert contract_statement in current_state
+
+
+def test_pr19_feature_branch_state_is_recorded() -> None:
+    current_state = (
+        REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
+    ).read_text(encoding="utf-8")
+
+    for status in (
+        "IMPLEMENTED ON FEATURE BRANCH",
+        "LOCAL REVIEW COMPLETE",
+        "NOT YET MERGED",
+        "NO PRODUCTION DEPLOYMENT",
+        "NO PRODUCTION CONTACT REQUIRED",
+        "NO DATABASE MIGRATION",
+    ):
+        assert status in current_state
+    assert "LOCAL REVIEW COMPLETE THROUGH PHASE " + "3" not in current_state
+    assert "THROUGH PHASE " + "4" not in current_state
+    assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." not in current_state
+    assert "PR19 has not started" not in current_state
+    for false_state in (
+        "`PR19 feat/cnbv-release-discovery` — MERGED",
+        "`PR19 feat/cnbv-release-discovery` — CLOSED",
+        "PR19 is MERGED",
+        "PR19 is CLOSED",
+        "COMPLETE ON MAIN",
+        "PR19 merged",
+        "PR19 closed",
+        "PR19 deployed",
+        "live PR19 smoke",
+        "CNBV artifacts persisted",
+        "Storage capacity fixed",
+        "PR20 started",
+        "PR21 started",
+    ):
+        assert false_state not in current_state
+
+    for role in (
+        "historical_series_data",
+        "concept_catalog",
+        "institution_catalog",
+    ):
+        assert role in current_state
+    assert "XLSX is excluded from the" in current_state
+    assert "exact observed snapshot" in current_state
+    assert "68,899,653" in current_state
+    assert "sh_datos_40.csv" in current_state
+    assert "584,795,606" in current_state
+    assert "200012 through 202607" in current_state
+    assert "effective/default `file_size_limit` of 52,428,800 bytes (50 MiB)" in current_state
+    assert "52,428,800 bytes (50 MiB)" in current_state
+    assert "PR19 makes no ArtifactStore calls." in current_state
+    assert (
+        "Before PR21 performs the first real CNBV ArtifactStore/Supabase upload"
+        in current_state
+    )
+    assert "Before PR19 / first real CNBV artifact ingestion" not in current_state
+    assert "package consistency" in current_state
+    assert "publication eligibility" in current_state
+    assert "PR19 intentionally defines no arbitrary quiet window." in current_state
+    assert "PR20_FULL_ZIP_STREAM_CAP_REQUIRED" in current_state
+    assert "ZipInfo.file_size" in current_state
+    assert 'roadmap phrase "June 2026 release"' in current_state
+    assert "first observed cumulative snapshot containing Apr\u2013Jun 2026" in current_state
+    assert "PR20 has not started." in current_state
+    assert "Repository migrations: 10." in current_state
+    assert "Production migrations: 10." in current_state
+    assert "Pending production migrations: 0." in current_state
+    assert (
+        "zero real CNBV artifacts, zero evidence rows, zero reported facts,"
+        in current_state
+    )
+    assert "zero review decisions, and zero canonical observations." in current_state
+    assert "PR19 does not discharge these semantic gates." in current_state
+    assert "ADR 0010 is Accepted on `feat/cnbv-release-discovery`." in current_state
+    assert "It is not frozen on `main`." in current_state
+    assert "ADRs 0003\u20130009 remain unchanged." in current_state
