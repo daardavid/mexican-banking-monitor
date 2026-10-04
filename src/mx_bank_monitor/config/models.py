@@ -49,6 +49,7 @@ class SourceFormat(StrEnum):
     CSV = "csv"
     XLSX = "xlsx"
     PDF = "pdf"
+    ZIP = "zip"
 
 
 class SourceRole(StrEnum):
@@ -60,6 +61,7 @@ class SourceRole(StrEnum):
 class EndpointKind(StrEnum):
     LANDING_PAGE = "landing_page"
     DOCUMENT_LIBRARY = "document_library"
+    ARTIFACT = "artifact"
 
 
 class AliasType(StrEnum):
@@ -156,6 +158,21 @@ class ValidityRange(ContractModel):
 class SourceEndpoint(ContractModel):
     kind: EndpointKind
     url: HttpUrl
+    artifact_role: Identifier | None = None
+    artifact_format: SourceFormat | None = None
+
+    @model_validator(mode="after")
+    def artifact_fields_match_kind(self) -> Self:
+        if self.kind == EndpointKind.ARTIFACT:
+            if self.artifact_role is None:
+                raise ValueError("artifact endpoint requires artifact_role")
+            if self.artifact_format is None:
+                raise ValueError("artifact endpoint requires artifact_format")
+        elif {"artifact_role", "artifact_format"} & self.model_fields_set:
+            raise ValueError(
+                f"{self.kind.value} endpoint must not declare artifact_role or artifact_format"
+            )
+        return self
 
 
 class SourceDefinition(ContractModel):
@@ -181,6 +198,17 @@ class SourceDefinition(ContractModel):
             raise ValueError("endpoints must contain at least one non-secret URL")
         endpoint_keys = tuple(f"{item.kind.value}:{item.url}" for item in self.endpoints)
         _require_unique(endpoint_keys, "source endpoint")
+        artifacts = tuple(item for item in self.endpoints if item.kind == EndpointKind.ARTIFACT)
+        _require_unique(
+            tuple(item.artifact_role for item in artifacts if item.artifact_role is not None),
+            "artifact role",
+        )
+        for artifact in artifacts:
+            if artifact.artifact_format not in self.formats:
+                raise ValueError(
+                    f"artifact role {artifact.artifact_role} format "
+                    f"{artifact.artifact_format} is not declared in source formats"
+                )
         if not self.reporting_scope_codes:
             raise ValueError("reporting_scope_codes must not be empty")
         _require_unique(self.reporting_scope_codes, "reporting scope reference")

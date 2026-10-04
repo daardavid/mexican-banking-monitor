@@ -9,10 +9,22 @@ sources:
     sector: banca_multiple
     adapter_key: cnbv_portfolio
     methodological_role: primary
-    formats: [csv, xlsx]
+    formats: [csv, zip]
     endpoints:
       - kind: landing_page
         url: https://portafolioinfo.cnbv.gob.mx/Paginas/Inicio.aspx
+      - kind: artifact
+        artifact_role: historical_series_data
+        artifact_format: zip
+        url: https://portafolioinfdoctos.cnbv.gob.mx/Documentacion/minfo/CSV/series_historicas/BM/sh_datos_csv_40.zip
+      - kind: artifact
+        artifact_role: concept_catalog
+        artifact_format: csv
+        url: https://portafolioinfdoctos.cnbv.gob.mx/Documentacion/minfo/CSV/series_historicas/BM/cat_conceptos_40.csv
+      - kind: artifact
+        artifact_role: institution_catalog
+        artifact_format: csv
+        url: https://portafolioinfdoctos.cnbv.gob.mx/Documentacion/minfo/CSV/series_historicas/BM/cat_instituciones_40.csv
     reporting_scope_codes: [individual_legal_entity]
     lifecycle: draft
 

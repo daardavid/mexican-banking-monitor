@@ -517,6 +517,7 @@ name = "mx-bank-monitor"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "httpx" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -544,6 +545,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2026.7.22" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "openpyxl", specifier = ">=3.1,<4" },
     { name = "pandas", specifier = ">=2.3,<4" },

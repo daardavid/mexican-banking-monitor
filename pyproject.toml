@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "David Abreu" }]
 dependencies = [
+  "certifi>=2026.7.22",
   "httpx>=0.28,<1",
   "openpyxl>=3.1,<4",
   "pandas>=2.3,<4",
@@ -41,6 +42,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mx_bank_monitor"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/mx_bank_monitor/ingestion/trust/globalsign-rsa-ov-ssl-ca-2018.pem" = "mx_bank_monitor/ingestion/trust/globalsign-rsa-ov-ssl-ca-2018.pem"
 
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --disable-warnings"
