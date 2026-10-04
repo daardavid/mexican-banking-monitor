@@ -367,6 +367,214 @@ def test_source_product_boundary_is_explicit(
         load_config_bundle(config_dir)
 
 
+def _artifact_endpoint(role: str, artifact_format: str) -> dict[str, str]:
+    return {
+        "kind": "artifact",
+        "url": f"https://example.test/artifacts/{role}.{artifact_format}",
+        "artifact_role": role,
+        "artifact_format": artifact_format,
+    }
+
+
+def _documents_with_artifacts(*endpoints: dict[str, str]) -> dict[str, dict[str, Any]]:
+    documents = _valid_documents()
+    source = documents["sources.yml"]["sources"][0]
+    source["formats"] = ["csv", "zip"]
+    source["endpoints"].extend(endpoints)
+    return documents
+
+
+def test_zip_artifact_endpoints_are_accepted(tmp_path: Path) -> None:
+    documents = _documents_with_artifacts(
+        _artifact_endpoint("data_archive", "zip"), _artifact_endpoint("catalog", "csv")
+    )
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    source = load_config_bundle(config_dir).sources.sources[0]
+
+    assert [item.value for item in source.formats] == ["csv", "zip"]
+    assert [
+        (item.kind.value, item.artifact_role, getattr(item.artifact_format, "value", None))
+        for item in source.endpoints
+    ] == [
+        ("landing_page", None, None),
+        ("artifact", "data_archive", "zip"),
+        ("artifact", "catalog", "csv"),
+    ]
+
+
+@pytest.mark.parametrize("missing", ["artifact_role", "artifact_format"])
+def test_artifact_endpoint_requires_role_and_format(tmp_path: Path, missing: str) -> None:
+    endpoint = _artifact_endpoint("data_archive", "zip")
+    del endpoint[missing]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, _documents_with_artifacts(endpoint))
+
+    with pytest.raises(ConfigValidationError, match=f"artifact endpoint requires {missing}"):
+        load_config_bundle(config_dir)
+
+
+@pytest.mark.parametrize(
+    ("kind", "field", "value"),
+    [
+        ("landing_page", "artifact_role", "data_archive"),
+        ("landing_page", "artifact_format", "zip"),
+        ("document_library", "artifact_role", "data_archive"),
+        ("document_library", "artifact_format", "csv"),
+    ],
+)
+def test_non_artifact_endpoint_rejects_artifact_fields(
+    tmp_path: Path, kind: str, field: str, value: str
+) -> None:
+    documents = _documents_with_artifacts()
+    documents["sources.yml"]["sources"][0]["endpoints"] = [
+        {"kind": kind, "url": "https://example.test/source", field: value}
+    ]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(
+        ConfigValidationError,
+        match=f"{kind} endpoint must not declare artifact_role or artifact_format",
+    ):
+        load_config_bundle(config_dir)
+
+
+@pytest.mark.parametrize("kind", ["landing_page", "document_library"])
+def test_non_artifact_endpoint_with_omitted_artifact_fields_is_accepted(
+    tmp_path: Path, kind: str
+) -> None:
+    documents = _valid_documents()
+    documents["sources.yml"]["sources"][0]["endpoints"] = [
+        {"kind": kind, "url": "https://example.test/source"}
+    ]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    endpoint = load_config_bundle(config_dir).sources.sources[0].endpoints[0]
+
+    assert (endpoint.artifact_role, endpoint.artifact_format) == (None, None)
+
+
+@pytest.mark.parametrize("kind", ["landing_page", "document_library"])
+@pytest.mark.parametrize(
+    "explicit_nulls",
+    [
+        {"artifact_role": None},
+        {"artifact_format": None},
+        {"artifact_role": None, "artifact_format": None},
+    ],
+)
+def test_non_artifact_endpoint_rejects_explicit_null_artifact_fields(
+    tmp_path: Path, kind: str, explicit_nulls: dict[str, None]
+) -> None:
+    documents = _valid_documents()
+    documents["sources.yml"]["sources"][0]["endpoints"] = [
+        {"kind": kind, "url": "https://example.test/source", **explicit_nulls}
+    ]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+    assert ": null" in (config_dir / "sources.yml").read_text(encoding="utf-8")
+
+    with pytest.raises(
+        ConfigValidationError,
+        match=f"{kind} endpoint must not declare artifact_role or artifact_format",
+    ):
+        load_config_bundle(config_dir)
+
+
+@pytest.mark.parametrize("explicit_null", ["artifact_role", "artifact_format"])
+def test_artifact_endpoint_rejects_explicit_null_role_or_format(
+    tmp_path: Path, explicit_null: str
+) -> None:
+    endpoint: dict[str, str | None] = {**_artifact_endpoint("data_archive", "zip")}
+    endpoint[explicit_null] = None
+    documents = _documents_with_artifacts()
+    documents["sources.yml"]["sources"][0]["endpoints"].append(endpoint)
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(
+        ConfigValidationError, match=f"artifact endpoint requires {explicit_null}"
+    ):
+        load_config_bundle(config_dir)
+
+
+def test_artifact_format_must_be_declared_by_source(tmp_path: Path) -> None:
+    documents = _documents_with_artifacts(_artifact_endpoint("data_archive", "zip"))
+    documents["sources.yml"]["sources"][0]["formats"] = ["csv"]
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(
+        ConfigValidationError,
+        match="artifact role data_archive format zip is not declared in source formats",
+    ):
+        load_config_bundle(config_dir)
+
+
+def test_duplicate_artifact_roles_are_rejected(tmp_path: Path) -> None:
+    second = _artifact_endpoint("catalog", "csv")
+    second["url"] = "https://example.test/artifacts/other-catalog.csv"
+    documents = _documents_with_artifacts(_artifact_endpoint("catalog", "csv"), second)
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(ConfigValidationError, match="duplicate artifact role: catalog"):
+        load_config_bundle(config_dir)
+
+
+def test_duplicate_artifact_endpoint_url_is_still_rejected(tmp_path: Path) -> None:
+    second = _artifact_endpoint("catalog", "csv")
+    second["artifact_role"] = "other_catalog"
+    documents = _documents_with_artifacts(_artifact_endpoint("catalog", "csv"), second)
+    config_dir = tmp_path / "config"
+    _write_bundle(config_dir, documents)
+
+    with pytest.raises(ConfigValidationError, match="duplicate source endpoint: artifact:"):
+        load_config_bundle(config_dir)
+
+
+def test_repository_cnbv_portfolio_artifact_contract() -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+    sources = {
+        source.code: source
+        for source in load_config_bundle(repository_root / "config").sources.sources
+    }
+    portfolio = sources["cnbv_portfolio"]
+    official_base = (
+        "https://portafolioinfdoctos.cnbv.gob.mx/Documentacion/minfo/CSV/series_historicas/BM/"
+    )
+
+    assert portfolio.definition_version == 1
+    assert portfolio.adapter_key == "cnbv_portfolio"
+    assert portfolio.methodological_role.value == "primary"
+    assert portfolio.reporting_scope_codes == ("individual_legal_entity",)
+    assert portfolio.lifecycle.value == "draft"
+    assert [item.value for item in portfolio.formats] == ["csv", "zip"]
+    assert "xlsx" not in {item.value for item in portfolio.formats}
+    assert [
+        (item.kind.value, str(item.url)) for item in portfolio.endpoints if item.kind != "artifact"
+    ] == [("landing_page", "https://portafolioinfo.cnbv.gob.mx/Paginas/Inicio.aspx")]
+    assert {
+        item.artifact_role: (getattr(item.artifact_format, "value", None), str(item.url))
+        for item in portfolio.endpoints
+        if item.kind == "artifact"
+    } == {
+        "historical_series_data": ("zip", official_base + "sh_datos_csv_40.zip"),
+        "concept_catalog": ("csv", official_base + "cat_conceptos_40.csv"),
+        "institution_catalog": ("csv", official_base + "cat_instituciones_40.csv"),
+    }
+    assert len([item for item in portfolio.endpoints if item.kind == "artifact"]) == 3
+
+    assert [item.value for item in sources["cnbv_bulletin"].formats] == ["xlsx"]
+    assert [item.value for item in sources["cnbv_capital"].formats] == ["pdf"]
+    for code in ("cnbv_bulletin", "cnbv_capital"):
+        assert [item.kind.value for item in sources[code].endpoints] == ["document_library"]
+        assert sources[code].lifecycle.value == "draft"
+
+
 def test_invalid_institution_validity_and_unknown_cohort_are_rejected(tmp_path: Path) -> None:
     documents = _valid_documents()
     documents["institutions.yml"]["institutions"] = [

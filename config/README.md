@@ -5,6 +5,11 @@ v1 definitions. Python remains executable authority; configuration never execute
 templates, or arbitrary transformation text.
 
 - `sources.yml` owns source metadata, non-secret endpoints, formats, roles, and symbolic adapters.
+  An endpoint with `kind: artifact` names one exact official file URL that discovery observes.
+  It must declare `artifact_role`, the identifier of the file's role in the source package, and
+  `artifact_format`, which must be one of the source's `formats`. Roles are unique within a
+  source. Other endpoint kinds, such as `landing_page`, are human provenance and must not declare
+  either field.
 - `institutions.yml` keeps MONITOR identity separate from regulatory registrations, aliases, and
   explicit cohort memberships. Each institution definition carries `definition_version`. Alias
   overlap uses the canonical Python normalizer `" ".join(value.split()).casefold()`; PostgreSQL
