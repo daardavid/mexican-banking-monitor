@@ -757,40 +757,40 @@ def test_pr18_is_recorded_as_merged_and_production_verified() -> None:
         assert contract_statement in current_state
 
 
-def test_pr19_feature_branch_state_is_recorded() -> None:
+def test_pr19_is_recorded_as_merged_and_complete() -> None:
     current_state = (
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
 
-    for status in (
+    assert "PR19 `feat/cnbv-release-discovery`" in current_state
+    assert "`PR19 feat/cnbv-release-discovery` — MERGED / COMPLETE" in current_state
+    assert "NO PRODUCTION DEPLOYMENT REQUIRED" in current_state
+    assert "NO DATABASE MIGRATION" in current_state
+    assert "ADR 0010 is Accepted and frozen on `main`." in current_state
+    assert "PR19 live CNBV smoke: PASS" in current_state
+    assert "GitHub PR #32" in current_state
+    assert "e5d828abc3ad7204f6c5198aa4b6f258795ed4ca" in current_state
+    for stale_state in (
         "IMPLEMENTED ON FEATURE BRANCH",
         "LOCAL REVIEW COMPLETE",
         "NOT YET MERGED",
-        "NO PRODUCTION DEPLOYMENT",
-        "NO PRODUCTION CONTACT REQUIRED",
-        "NO DATABASE MIGRATION",
-    ):
-        assert status in current_state
-    assert "LOCAL REVIEW COMPLETE THROUGH PHASE " + "3" not in current_state
-    assert "THROUGH PHASE " + "4" not in current_state
-    assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." not in current_state
-    assert "PR19 has not started" not in current_state
-    for false_state in (
-        "`PR19 feat/cnbv-release-discovery` — MERGED",
+        "It is not frozen on `main`.",
+        "`PR19 feat/cnbv-release-discovery` — NOT STARTED",
+        "PR19 has not started",
+        "LOCAL REVIEW COMPLETE THROUGH PHASE " + "3",
+        "THROUGH PHASE " + "4",
         "`PR19 feat/cnbv-release-discovery` — CLOSED",
-        "PR19 is MERGED",
         "PR19 is CLOSED",
         "COMPLETE ON MAIN",
-        "PR19 merged",
         "PR19 closed",
         "PR19 deployed",
-        "live PR19 smoke",
         "CNBV artifacts persisted",
         "Storage capacity fixed",
         "PR20 started",
         "PR21 started",
+        "Before PR19 / first real CNBV artifact ingestion",
     ):
-        assert false_state not in current_state
+        assert stale_state not in current_state
 
     for role in (
         "historical_series_data",
@@ -801,17 +801,22 @@ def test_pr19_feature_branch_state_is_recorded() -> None:
     assert "XLSX is excluded from the" in current_state
     assert "exact observed snapshot" in current_state
     assert "68,899,653" in current_state
+    assert "16,470,853" in current_state
     assert "sh_datos_40.csv" in current_state
     assert "584,795,606" in current_state
     assert "200012 through 202607" in current_state
+    assert "portafolioinfdoctos.cnbv.gob.mx" in current_state
+    assert "HTTP 200" in current_state
+    assert "structural validation passed" in current_state
+    assert "no redirects" in current_state
+    assert "d9d182a99f26b3c37254f345552e43acf5febf85996ffb9ff49d043fef57ae00" in current_state
     assert "effective/default `file_size_limit` of 52,428,800 bytes (50 MiB)" in current_state
-    assert "52,428,800 bytes (50 MiB)" in current_state
+    assert "52,428,800" in current_state
     assert "PR19 makes no ArtifactStore calls." in current_state
     assert (
         "Before PR21 performs the first real CNBV ArtifactStore/Supabase upload"
         in current_state
     )
-    assert "Before PR19 / first real CNBV artifact ingestion" not in current_state
     assert "package consistency" in current_state
     assert "publication eligibility" in current_state
     assert "PR19 intentionally defines no arbitrary quiet window." in current_state
@@ -820,6 +825,7 @@ def test_pr19_feature_branch_state_is_recorded() -> None:
     assert 'roadmap phrase "June 2026 release"' in current_state
     assert "first observed cumulative snapshot containing Apr\u2013Jun 2026" in current_state
     assert "PR20 has not started." in current_state
+    assert "`PR20 feat/cnbv-three-period-parser` — NOT STARTED." in current_state
     assert "Repository migrations: 10." in current_state
     assert "Production migrations: 10." in current_state
     assert "Pending production migrations: 0." in current_state
@@ -829,6 +835,4 @@ def test_pr19_feature_branch_state_is_recorded() -> None:
     )
     assert "zero review decisions, and zero canonical observations." in current_state
     assert "PR19 does not discharge these semantic gates." in current_state
-    assert "ADR 0010 is Accepted on `feat/cnbv-release-discovery`." in current_state
-    assert "It is not frozen on `main`." in current_state
     assert "ADRs 0003\u20130009 remain unchanged." in current_state
