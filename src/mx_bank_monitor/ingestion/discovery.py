@@ -91,8 +91,28 @@ class ReleaseLineageAmbiguousError(ContractError):
 
 
 class ArtifactRetrievalError(DiscoveryError):
+    """A retrieval failure that can carry safe HTTP context for a later audit row.
+
+    ``requested_url`` is the caller-supplied URL. ``final_url`` is set only when a
+    response was reached. ``observation`` is set only when response metadata exists.
+    These fields are not database identifiers and are not release-identity inputs.
+    """
+
     code = "artifact_retrieval_failed"
     default_summary = "The artifact could not be retrieved."
+
+    def __init__(
+        self,
+        summary: str | None = None,
+        *,
+        requested_url: str | None = None,
+        final_url: str | None = None,
+        observation: HttpObservation | None = None,
+    ) -> None:
+        super().__init__(summary)
+        self.requested_url = requested_url
+        self.final_url = final_url
+        self.observation = observation
 
 
 class ArtifactTlsUntrustedError(ArtifactRetrievalError):
