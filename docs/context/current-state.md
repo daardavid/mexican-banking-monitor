@@ -18,10 +18,9 @@ not a changelog and does not make the roadmap executable.
   MERGED / COMPLETE; production deployment is COMPLETE / VERIFIED. PR16
   `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED. PR17 `feat/semantic-mapping-schema` is MERGED / COMPLETE; production deployment
-  is COMPLETE / VERIFIED. PR18 implementation is present in this repository snapshot;
-  production deployment has not been performed or verified. Production deployment: NOT
-  PERFORMED. Production verification: NOT PERFORMED. Production has no
-  `semantic.canonical_observations_v1` view. PR19 has not started.
+  is COMPLETE / VERIFIED. PR18 `feat/canonical-observation-view` is MERGED / COMPLETE;
+  production deployment is COMPLETE / VERIFIED. Production contains
+  `semantic.canonical_observations_v1`. PR19 has not started.
 
 ## Implemented now
 
@@ -113,7 +112,7 @@ not a changelog and does not make the roadmap executable.
   `semantic.canonical_concepts`, `semantic.canonical_concept_versions`,
   `semantic.canonical_concept_version_scopes`, `semantic.concept_mappings`, and
   `semantic.concept_mapping_versions`. The migration inserts zero seed rows. It creates no view,
-  function, trigger, policy, sequence, extension, or standalone index. The PR17 migration does
+  function, trigger, policy, sequence, extension, or standalone index. The PR17 migration did
   not create `semantic.canonical_observations_v1`. Canonical identity invariants
   `data_nature`, `period_kind`, and `canonical_unit_code` live only on
   `semantic.canonical_concepts`: `stock` pairs with `instant`, and `flow_ytd` pairs with
@@ -133,12 +132,10 @@ not a changelog and does not make the roadmap executable.
   definitions-publishing gate is still
   future work: a reviewed definitions publisher must exist before PR21 inserts any real
   definition or fact.
-- PR18 implementation is present in this repository snapshot; production deployment has
-  not been performed or verified. The repository migration is
-  `20261002140000_canonical_observation_view.sql`. Repository migrations: 10. Production
-  migrations: 9. Pending production migrations: exactly 1. Production deployment: NOT
-  PERFORMED. Production verification: NOT PERFORMED. ADR 0009 is Accepted. The migration
-  adds one private ordinary
+- The deployed PR18 canonical observation view is MERGED / COMPLETE; production deployment
+  is COMPLETE / VERIFIED. Repository migrations: 10. Production migrations: 10. Pending
+  production migrations: 0. No pending production migration remains. ADR 0009 is Accepted.
+  Production contains one private ordinary
   `security_invoker` view, `semantic.canonical_observations_v1`, with exactly 21 columns.
   The sole fact input is `serving.current_publishable_facts`. `institution_id` comes from
   the exact regulatory registration, and that registration must cover `economic_date`.
@@ -152,8 +149,7 @@ not a changelog and does not make the roadmap executable.
   `transformation_key` is suppressed. There is no unit conversion. Period kind must match
   exactly. `canonical_value` is an exact unconstrained `numeric` pass-through. Legitimate
   mapping fan-out is preserved. There is no economic-key arbitration, no point-in-time or
-  as-of semantic contract, no public contract, and no seeds. Production has no
-  `semantic.canonical_observations_v1` view. PR18 does not implement source discovery, a
+  as-of semantic contract, no public contract, and no seeds. PR18 does not implement source discovery, a
   CNBV parser, definitions publishing, a transformation registry, dimensional mapping, a
   metric engine, a quality issue or blocker layer, point-in-time semantic reconstruction,
   or a public serving contract. Real CNBV publication remains gated before PR21 on
@@ -174,7 +170,7 @@ not a changelog and does not make the roadmap executable.
   structured-JSON remote-history and dry-run gates, Vault-free pending-only push, and read-only
   post-push verification. It never repairs history, resets remote, or forces out-of-order
   migrations. The workflow has been used successfully for the verified PR10, PR11, PR13, PR14,
-  PR15, PR15a, PR16, and PR17 deployments.
+  PR15, PR15a, PR16, PR17, and PR18 deployments.
 - The placeholder refresh schedule is disabled on `main`. The workflow remains available for manual
   database preflight; real `mbm refresh` is not implemented or enabled.
 - PowerShell bootstrap, shared command, regression, and full-check scripts; the update flow is
@@ -193,9 +189,8 @@ COMPLETE; PR14 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15 MERGED / COMPLETE
 PR15 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR15A MERGED / COMPLETE;
 PR15A PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR16 MERGED / COMPLETE;
 PR16 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR17 MERGED / COMPLETE;
-PR17 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR18 IMPLEMENTATION PRESENT IN THIS
-REPOSITORY SNAPSHOT; PRODUCTION DEPLOYMENT NOT PERFORMED; PRODUCTION VERIFICATION NOT
-PERFORMED`
+PR17 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED; PR18 MERGED / COMPLETE;
+PR18 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED`
 
 Architecture ADRs 0003–0007 are accepted and frozen on `main`. They establish separate institution
 and registration identity, temporal/review and supersession semantics, controlled reporting scope,
@@ -213,12 +208,10 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   relations, the deployed PR13 audit ingestion lifecycle, the deployed PR14 institution
   identity/taxonomy schema, the deployed PR15 reported-fact schema, the deployed PR15a
   review-decision schema, and the deployed PR16 fact current/as-of query surfaces,
-  and the deployed PR17 semantic mapping schema, and the PR18 canonical observation
-  view present in this repository snapshot.
-  Production has exactly nine migrations. Pending production migrations: exactly 1. The
-  pending migration is `20261002140000_canonical_observation_view.sql`. Production has no
-  `semantic.canonical_observations_v1` view. Production contains the five empty PR17 semantic
-  tables. No v1 public contract exists, and there is no dual-write.
+  and the deployed PR17 semantic mapping schema, and the deployed PR18 canonical observation
+  view. Production has exactly ten migrations. No pending production migration remains.
+  Production contains `semantic.canonical_observations_v1`. Production contains the five empty
+  PR17 semantic tables. No v1 public contract exists, and there is no dual-write.
 - `public.regulatory_bank_metrics_v1` remains absent.
 
 ## Operational state
@@ -238,14 +231,13 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   - `20260919180000 / review_decision_events`
   - `20260922120000 / fact_current_as_of_queries`
   - `20260926093000 / semantic_mapping_schema`
-- This repository snapshot contains exactly ten migrations and production has exactly nine
-  migrations. Pending production migrations: exactly 1. The pending migration is
-  `20261002140000_canonical_observation_view.sql`. Production has no
-  `semantic.canonical_observations_v1` view.
+  - `20261002140000 / canonical_observation_view`
+- This repository snapshot contains exactly ten migrations and production has exactly ten
+  migrations. Pending production migrations: 0. No pending production migration remains.
+  Production contains `semantic.canonical_observations_v1`.
 - The legacy objects remain intact and frozen, and all 10 legacy tables remain empty.
 - `mbm doctor --database` passes against the legacy baseline. The last completed production
-  migration dry-run, after the PR17 deployment, was a no-op. Production deployment of the
-  PR18 migration has not been performed.
+  migration dry-run, after the PR18 deployment, was a no-op.
 - The remote contains the seven v1 responsibility schemas: `evidence`, `registry`, `reported`,
   `semantic`, `metrics`, `audit`, and `serving`.
 - The remote contains `registry.measurement_units`, `registry.reporting_scopes`, and
@@ -311,13 +303,10 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   observed rows, current publishable rows, and zero
   as-of query results. Prior PR10–PR15a
   runtime tables remain empty. Legacy objects remain intact and empty. No real CNBV facts
-  exist. `semantic.canonical_observations_v1`,
-  `metrics.metric_definitions`, and `metrics.metric_observations` remain absent. Production
+  exist. `metrics.metric_definitions` and `metrics.metric_observations` remain absent. Production
   `metrics` remains an empty responsibility shell.
   Metrics implementation remains absent. `public.regulatory_bank_metrics_v1` remains absent. `audit.quality_issues` remains
-  absent. PR18 implementation is present in this repository snapshot; production deployment
-  has not been performed or verified. Production has no
-  `semantic.canonical_observations_v1` view.
+  absent.
 - GitHub PR #28 merged PR17 at `e060a605b43132fd306b718ac05c5309140a23b1`. Post-merge main CI
   run `36668137372` succeeded. PR17 production database deployment workflow run `36669660851`
   completed successfully and was executed exactly once. It applied only
@@ -332,13 +321,33 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, or TRIGGER. `anon`, `authenticated`, and
   `PUBLIC` have no table access. No column-level grants exist. No canonical definitions are
   seeded and no mappings are seeded. Overlapping mapping validity remains allowed, and
-  there is no exclusion constraint. In production, `semantic.canonical_observations_v1` remains absent.
-  Prior PR10–PR16 runtime tables remain empty. Legacy objects remain intact and empty. No real
-  CNBV facts exist.
-  Semantic effectiveness rules remain those frozen in ADR 0008. PR18 implementation is
-  present in this repository snapshot; production deployment has not been performed or
-  verified. Production verification: NOT PERFORMED. Production has no
-  `semantic.canonical_observations_v1` view. PR19 has not started.
+  there is no exclusion constraint. Prior PR10–PR16 runtime tables remain empty. Legacy objects
+  remain intact and empty. No real CNBV facts exist.
+  Semantic effectiveness rules remain those frozen in ADR 0008.
+- GitHub PR #30 merged PR18 at `e8515dc89e994dc2766504bfebe18ef0487eb939`. Post-merge main CI
+  run `37156145354` succeeded. PR18 production database deployment workflow run `37165967164`
+  completed successfully and was executed exactly once. It applied only
+  `20261002140000_canonical_observation_view.sql`. Production migration history is aligned at
+  ten, pending migrations are none, and the final production dry-run was a no-op.
+  Independent read-only production verification is complete and classified
+  `PR18_PRODUCTION_VERIFICATION_PASS`. Production contains
+  `semantic.canonical_observations_v1`, an ordinary view with `relkind` `v`,
+  `security_invoker=true`, exactly 21 columns, unconstrained `numeric` `canonical_value`
+  (`atttypmod=-1`), and zero rows. `service_role` has SELECT only. `PUBLIC`, `anon`, and
+  `authenticated` have no privileges. No column-level grants exist. Production semantic
+  inventory is five ordinary tables, one ordinary view, zero materialized views, 11
+  constraint-backed indexes, zero standalone PR18 indexes, zero routines, zero policies, and
+  zero user triggers attributable to PR18. All five semantic tables remain empty.
+  `reported.reported_facts`, `audit.review_decisions`, `serving.current_observed_facts`, and
+  `serving.current_publishable_facts` remain at zero rows. Direct view dependencies are
+  `serving.current_publishable_facts`, `registry.regulatory_registrations`,
+  `registry.regulatory_concepts`, `semantic.concept_mappings`,
+  `semantic.concept_mapping_versions`, `semantic.canonical_concept_versions`,
+  `semantic.canonical_concept_version_scopes`, and `semantic.canonical_concepts`. The view
+  does not depend directly on `reported.reported_facts`, `audit.review_decisions`,
+  `audit.effective_review_decisions`, `serving.current_observed_facts`, or
+  `serving.reported_fact_revision_ancestry`. Prior PR14–PR17 objects and legacy schemas
+  remain present.
 - The Vault-free production deployment hotfix is complete on `main`.
 - PR10 v1 responsibility schemas, measurement units, and reporting scopes are merged, deployed,
   and verified in production.
@@ -351,6 +360,7 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
 - PR16 fact current and as-of queries are merged, deployed, and independently verified in
   production.
 - PR17 semantic mapping schema is merged, deployed, and independently verified in production.
+- PR18 canonical observation view is merged, deployed, and independently verified in production.
 - Each laptop keeps its own untracked `.env` and local `.venv`.
 - Secrets live outside the repository; no secret values belong in this snapshot.
 - The canonical rules are in `docs/operations/operational-contract.md`.
@@ -389,10 +399,8 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   VERIFIED.
 - `PR17 feat/semantic-mapping-schema` — MERGED / COMPLETE; production deployment is COMPLETE /
   VERIFIED.
-- `PR18 feat/canonical-observation-view` — implementation is present in this repository
-  snapshot; production deployment has not been performed or verified. Production
-  deployment: NOT PERFORMED. Production verification: NOT PERFORMED. Production has no
-  `semantic.canonical_observations_v1` view.
+- `PR18 feat/canonical-observation-view` — MERGED / COMPLETE; production deployment is COMPLETE /
+  VERIFIED.
 - `PR19 feat/cnbv-release-discovery` — NOT STARTED.
 - Regulatory Data Core v1 schema work — STARTED / PR10 AND PR11 DEPLOYED / VERIFIED; PR12 MERGED /
   COMPLETE with production Storage PROVISIONED / VERIFIED; PR13 MERGED / COMPLETE with production
@@ -400,8 +408,8 @@ ADR 0007 remains unchanged. Semantic effectiveness rules remain those frozen in 
   VERIFIED; PR15 MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR15a
   MERGED / COMPLETE with production deployment COMPLETE / VERIFIED; PR16 MERGED / COMPLETE with
   production deployment COMPLETE / VERIFIED; PR17 MERGED / COMPLETE with production deployment
-  COMPLETE / VERIFIED; PR18 implementation is present in this repository snapshot;
-  production deployment has not been performed or verified.
+  COMPLETE / VERIFIED; PR18 MERGED / COMPLETE with production deployment COMPLETE /
+  VERIFIED.
 
 ## Known pending gates
 

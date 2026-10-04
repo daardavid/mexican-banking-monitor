@@ -151,7 +151,8 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         "  - `20260919143000 / reported_fact_schema`\n"
         "  - `20260919180000 / review_decision_events`\n"
         "  - `20260922120000 / fact_current_as_of_queries`\n"
-        "  - `20260926093000 / semantic_mapping_schema`"
+        "  - `20260926093000 / semantic_mapping_schema`\n"
+        "  - `20261002140000 / canonical_observation_view`"
         in current_state
     )
     assert (
@@ -197,12 +198,13 @@ def test_pr7_operational_amendment_and_roadmap_state_are_current() -> None:
         in current_state
     )
     assert "The repository contains exactly ten migrations." in current_state
-    assert "Production has exactly nine migrations." in current_state
+    assert "Production has exactly ten migrations." in current_state
+    assert "Production has exactly nine migrations." not in current_state
     assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
     assert "Exactly one repository migration is pending relative" not in current_state
-    assert "Pending production migrations: exactly 1." in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Pending production migrations: exactly 1." not in current_state
+    assert "No pending production migration remains." in current_state
     assert "Production has exactly six migrations." not in current_state
     assert "PR13 production database deployment workflow run `35168042980`" in current_state
     assert "`audit.ingestion_runs` and `audit.ingestion_run_artifacts`; both tables are empty." in (
@@ -324,13 +326,14 @@ def test_pr15a_is_recorded_as_merged_and_production_verified() -> None:
         "current/as-of query surfaces,"
         in current_state
     )
-    assert "Production has exactly nine migrations." in current_state
+    assert "Production has exactly ten migrations." in current_state
     assert "The repository contains exactly ten migrations." in current_state
+    assert "Production has exactly nine migrations." not in current_state
     assert "Production has exactly eight migrations." not in current_state
     assert "Production has exactly seven migrations." not in current_state
     assert "Exactly one repository migration is pending relative" not in current_state
-    assert "Pending production migrations: exactly 1." in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Pending production migrations: exactly 1." not in current_state
+    assert "No pending production migration remains." in current_state
     assert "history is aligned at seven, pending migrations are none" in current_state
     assert "the final production dry-run\n  was a no-op." in current_state
     assert "PR15a review-decision schema is merged, deployed, and independently verified" in (
@@ -424,10 +427,11 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
     ).read_text(encoding="utf-8")
 
     assert "The repository contains exactly ten migrations." in current_state
-    assert "Production has exactly nine migrations." in current_state
+    assert "Production has exactly ten migrations." in current_state
+    assert "Production has exactly nine migrations." not in current_state
     assert "Production has exactly eight migrations." not in current_state
-    assert "Pending production migrations: exactly 1." in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "Pending production migrations: exactly 1." not in current_state
+    assert "No pending production migration remains." in current_state
     assert "pending migrations are none" in current_state
     assert (
         "PR16\n  `feat/fact-current-as-of-queries` is MERGED / COMPLETE; production deployment "
@@ -499,6 +503,7 @@ def test_pr16_is_recorded_as_merged_and_production_verified() -> None:
     for stale_claim in (
         "Production has exactly seven migrations.",
         "Production has exactly eight migrations.",
+        "Production has exactly nine migrations.",
         "20260922120000_fact_current_as_of_queries.sql`. No v1",
         "PR16 fact-level current/as-of objects\n  remain absent.",
         "Production serving schema still has no PR16",
@@ -567,10 +572,11 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     assert "Independent read-only production verification is complete" in current_state
     assert "`PR17_PRODUCTION_VERIFICATION_PASS`" in current_state
     assert "The repository contains exactly ten migrations." in current_state
-    assert "Production has exactly nine migrations." in current_state
-    assert "Pending production migrations: exactly 1." in current_state
+    assert "Production has exactly ten migrations." in current_state
+    assert "Production has exactly nine migrations." not in current_state
+    assert "Pending production migrations: exactly 1." not in current_state
     assert "`20261002140000_canonical_observation_view.sql`" in current_state
-    assert "No pending production migration remains." not in current_state
+    assert "No pending production migration remains." in current_state
     assert "`20260926093000 / semantic_mapping_schema`" in current_state
     assert "`20260926093000_semantic_mapping_schema.sql`" in current_state
     assert "ADR 0008 is Accepted" in current_state
@@ -579,7 +585,6 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     assert "RLS is enabled on all five with zero policies." in current_state
     assert "`service_role` is SELECT-only" in current_state
     assert "No canonical definitions are seeded and no mappings are seeded." in current_state
-    assert "PR18 implementation is present in this repository snapshot" in current_state
     for table_name in (
         "`semantic.canonical_concepts`",
         "`semantic.canonical_concept_versions`",
@@ -589,7 +594,7 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
     ):
         assert table_name in current_state
     for boundary in (
-        "`semantic.canonical_observations_v1` remains absent",
+        "The PR17 migration did\n  not create `semantic.canonical_observations_v1`.",
         "Metrics implementation remains absent",
         "`audit.quality_issues` remains absent",
         "`public.regulatory_bank_metrics_v1` remains absent",
@@ -618,9 +623,6 @@ def test_pr17_is_recorded_as_merged_and_production_verified() -> None:
         "PR18 implemented",
         "PR18 has begun",
         "PR18 has not started",
-        "PR18 MERGED",
-        "PR18 DEPLOYED",
-        "PR18 CLOSED",
         "NEXT AFTER THIS CHECKPOINT IS MERGED",
     ):
         assert stale_claim not in current_state
@@ -659,24 +661,51 @@ def test_adr_0009_freezes_the_canonical_observation_contract() -> None:
         assert statement in adr
 
 
-def test_pr18_repository_state_is_present_and_not_deployed() -> None:
+def test_pr18_is_recorded_as_merged_and_production_verified() -> None:
     current_state = (
         REPOSITORY_ROOT / "docs" / "context" / "current-state.md"
     ).read_text(encoding="utf-8")
 
     assert "ADR 0009 is Accepted" in current_state
-    assert "PR18 implementation is present in this repository snapshot" in current_state
+    assert "PR18 MERGED / COMPLETE" in current_state
+    assert "PR18 PRODUCTION DEPLOYMENT COMPLETE / VERIFIED" in current_state
+    assert (
+        "`PR18 feat/canonical-observation-view` — MERGED / COMPLETE; production deployment is "
+        "COMPLETE /\n  VERIFIED."
+        in current_state
+    )
     assert "The repository contains exactly ten migrations." in current_state
     assert "Repository migrations: 10." in current_state
-    assert "Production has exactly nine migrations." in current_state
-    assert "Production\n  migrations: 9." in current_state
-    assert "Pending production migrations: exactly 1." in current_state
-    assert "`20261002140000_canonical_observation_view.sql`" in current_state
-    assert "Production deployment: NOT\n  PERFORMED." in current_state
-    assert "Production verification: NOT PERFORMED." in current_state
-    assert "production deployment has not been performed or verified." in current_state
-    assert "Production has no\n  `semantic.canonical_observations_v1` view." in current_state
-    assert "In production, `semantic.canonical_observations_v1` remains absent." in current_state
+    assert "Production has exactly ten migrations." in current_state
+    assert "Production migrations: 10." in current_state
+    assert "Pending production migrations: 0." in current_state
+    assert "No pending production migration remains." in current_state
+    assert (
+        "GitHub PR #30 merged PR18 at `e8515dc89e994dc2766504bfebe18ef0487eb939`."
+        in current_state
+    )
+    assert "Post-merge main CI\n  run `37156145354` succeeded." in current_state
+    assert "PR18 production database deployment workflow run `37165967164`" in current_state
+    assert (
+        "workflow run `37165967164`\n  completed successfully and was executed exactly once."
+        in current_state
+    )
+    assert (
+        "It applied only\n  `20261002140000_canonical_observation_view.sql`."
+        in current_state
+    )
+    assert "aligned at\n  ten, pending migrations are none" in current_state
+    assert "the final production dry-run was a no-op." in current_state
+    assert "`PR18_PRODUCTION_VERIFICATION_PASS`" in current_state
+    assert "Production contains\n  `semantic.canonical_observations_v1`" in current_state
+    assert "`relkind` `v`" in current_state
+    assert "`security_invoker=true`" in current_state
+    assert "exactly 21 columns" in current_state
+    assert (
+        "unconstrained `numeric` `canonical_value`\n  (`atttypmod=-1`), and zero rows."
+        in current_state
+    )
+    assert "`service_role` has SELECT only." in current_state
     assert "PR19 has not started." in current_state
     assert "`PR19 feat/cnbv-release-discovery` — NOT STARTED." in current_state
     for transient_claim in (
@@ -684,7 +713,18 @@ def test_pr18_repository_state_is_present_and_not_deployed() -> None:
         "is not merged",
         "d3e6c01544701d49a6fea0a827172a6e9d7e0be0",
         "On branch `feat/canonical-observation-view`",
-        "PR18 MERGED",
+        "Production has exactly nine migrations.",
+        "Production migrations: 9.",
+        "Pending production migrations: exactly 1.",
+        "Production deployment: NOT\n  PERFORMED.",
+        "Production verification: NOT PERFORMED.",
+        "PRODUCTION DEPLOYMENT NOT PERFORMED",
+        "PRODUCTION VERIFICATION NOT PERFORMED",
+        "production deployment has not been performed or verified.",
+        "Production has no\n  `semantic.canonical_observations_v1` view.",
+        "In production, `semantic.canonical_observations_v1` remains absent.",
+        "`semantic.canonical_observations_v1` remains absent",
+        "NEXT AFTER THIS CHECKPOINT IS MERGED",
     ):
         assert transient_claim not in current_state
     for contract_statement in (
